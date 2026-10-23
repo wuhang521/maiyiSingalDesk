@@ -1,0 +1,1437 @@
+{
+  "schema": 1,
+  "kind": "maiyi-public-source-snapshot",
+  "version": "0.6.0",
+  "created_at": "2026-10-23T02:00:14.387095+00:00",
+  "git_history_included": false,
+  "private_configuration_included": false,
+  "privacy_scan": {
+    "status": "PASS",
+    "findings": [],
+    "scope": "whitelisted UTF-8 source; public raster branding assets excluded from text matching"
+  },
+  "file_count": 284,
+  "files": [
+    {
+      "path": ".github/release-notes/v0.6.0.md",
+      "bytes": 1242,
+      "sha256": "97d16df9e58dcfd7ede8e3b76f4225c5bb8690be37995c98290a3a568a5c3066"
+    },
+    {
+      "path": ".github/workflows/desktop-release.yml",
+      "bytes": 2719,
+      "sha256": "4e0c0cd80796ce132d334504ad23eb76f7a44fa3c640d01963f1ba70d5833d09"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 349,
+      "sha256": "15a3484b84fdaee6d20caf7ca6ba08a2a113b28514053d009e0fb01c687c9d05"
+    },
+    {
+      "path": "build/icon.png",
+      "bytes": 181494,
+      "sha256": "21074c1f5ea45c402a52923e840b850d9c82daa04136a8475d036d789c58b7f8"
+    },
+    {
+      "path": "electron/desktop-updater.cjs",
+      "bytes": 8815,
+      "sha256": "57ed06e55db9da0510a6a5b98c812284e1635e45258068feedc227f6f2983ed8"
+    },
+    {
+      "path": "electron/knowledge-watch.cjs",
+      "bytes": 4001,
+      "sha256": "a7ea5e189fadce7b9c40fc32ddc8cf19be2b2d27938721ff7e5d414094c2c1fd"
+    },
+    {
+      "path": "electron/main.cjs",
+      "bytes": 22336,
+      "sha256": "432162ddb1737382e0c5f2ef90b36cfcfcb108403f06d437f2dc0811476bb3af"
+    },
+    {
+      "path": "electron/preload.cjs",
+      "bytes": 2695,
+      "sha256": "daea5bf7208830ae10dc987e552f92d374c5624a1c60dfd462eb639595d39f59"
+    },
+    {
+      "path": "electron/video-desktop.cjs",
+      "bytes": 11316,
+      "sha256": "c3cd5b2985c3c3c0782ec3f832cd03c9137a96c1a918a3bbb03704ac28e82386"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/BUNDLE-MANIFEST.json",
+      "bytes": 11101,
+      "sha256": "a69c30d4180e993906fbe6df7a60b6c35f69d54fda595180a410679b94a60d6f"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/HERMES-RUNTIME.md",
+      "bytes": 9140,
+      "sha256": "2a715dc8d74654f0be994f8dc0482bcaaebbb5fe6d1620a498c9e2e41ee898f2"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/avatar/guide.md",
+      "bytes": 30459,
+      "sha256": "5941911f721c9d5aa0bf55d80210123da43e11b7ecfbddf3977e21a65d464b47"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/avatar/prompt-rules.md",
+      "bytes": 18866,
+      "sha256": "76ccde6ca640c113071b4e0363dd20aa1a874b45dd447739421d1ff9ff048e10"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/avatar/prompt_src.example.json",
+      "bytes": 873,
+      "sha256": "9fc4f36874ada737a214498763676b7970e8dc9efdc10f94dbe4638f3d806580"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/avatar/runninghub-notes.md",
+      "bytes": 7371,
+      "sha256": "a69743a21092f6f26e8c280022393ce132230179d060be4c020e7e15721f94ae"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/pipeline.md",
+      "bytes": 6245,
+      "sha256": "80d75de11aa624424168758bfb6dd1ccf6ea9d169ecaddb66e9107c8651dba2b"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/review-hooks.md",
+      "bytes": 7220,
+      "sha256": "246f38347020ac5795dc4eda55f9f4bf56379737bc0a415d7d97bbac0d2ed354"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/scenarios.md",
+      "bytes": 4182,
+      "sha256": "809190e86baa9edf4d60debae9b1df255cc99dee49ca283bd448ca4f9a979c9b"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/tools.md",
+      "bytes": 37751,
+      "sha256": "df967e727bf60b253cd7a441bfd0b33b319511a144ed7e02dbf5108f6e68b027"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/voice/api-notes.md",
+      "bytes": 8562,
+      "sha256": "474ef6506d5b0b3aee1b126892d3cad08027880a48ca2d1f81e2bafbf3eeb271"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/voice/emotions.example.json",
+      "bytes": 690,
+      "sha256": "530776564a683cc4896b2c63428b8e3ab142a0191e0e4744099417d4dc12e9b9"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/voice/guide.md",
+      "bytes": 16981,
+      "sha256": "b33d80df4f89f481808c3accae9bfb5636a45219535be3b28eaede2688c9d0d6"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/references/voice/onboarding.md",
+      "bytes": 1631,
+      "sha256": "16a1fece3a2ef2c7ec122060d872e9191f0dea7223e06f05443dddc92c29a69d"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/_cli.py",
+      "bytes": 8043,
+      "sha256": "e12e1908b2eb2dea99afc1d66068f1a83483ce0e11de71aa5cb3d0174655d31c"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/_review.py",
+      "bytes": 9089,
+      "sha256": "73ecbd6cbd5aaff3d2736b8a74cd59abe36e800e5e35b744c36827b529dc5322"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/_util.py",
+      "bytes": 5651,
+      "sha256": "ec83388a61db49eabf3c79077d6d4a83ddcb7390b1521beaede5a455094087e3"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/build_prompts.py",
+      "bytes": 14125,
+      "sha256": "54768c4b7c9c511afd4f25b3664fb24efa769d1456ebb08aed42764cb513aaa3"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/captions.py",
+      "bytes": 27881,
+      "sha256": "eb3bdc42bc1acd58f362e763665719eda7ad956803ab227af55203fed4309b1a"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/check_setup.py",
+      "bytes": 3629,
+      "sha256": "d08d37da582cafa91cc21b6efafa9a8196e82fec9ad9e1845471d9cfb74a3f91"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/common.py",
+      "bytes": 11503,
+      "sha256": "c860bcaa48e4bff555734d83fa61d68dc7f84caa0fd7233ac63c0b7af0081ce0"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/contact_sheet.py",
+      "bytes": 3495,
+      "sha256": "2a4d41c56babdc92ee36560dd474a1125be091a56235b58f23e6098463fe32e8"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/finalize.py",
+      "bytes": 11399,
+      "sha256": "ec81c349a18fb88dca49843d674613a0b89e838faaff97fc3cc9031b47745ea6"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/jumpcut.py",
+      "bytes": 17105,
+      "sha256": "e00e545773b665283c22775677ede364cc839333782558983c2553f928591b11"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/plan_segments.py",
+      "bytes": 10948,
+      "sha256": "2ee40b4995cdff516dd2c95b03d46765ded948cfa1370fd0fafd690742c184c6"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/prepare_image.py",
+      "bytes": 8294,
+      "sha256": "6d6ded8503467390de22cc311a02d3f5cc0d99acc450afd045627b5fa4481103"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/qa_video.py",
+      "bytes": 15355,
+      "sha256": "0b684bafbf72d36610a73281a623ac92e181daeeebddf60cd1731eb37f91580d"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/qc_frames.py",
+      "bytes": 12518,
+      "sha256": "b0f2c1227aaa1fdf8ee61feed8294c09dc7b89bdfca89b89cbef782fd819aa47"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/run_avatar.py",
+      "bytes": 41835,
+      "sha256": "a8bbd018c65a7eb785019ee0515933632609a009eadcebb68b9ab173ed358ff8"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/avatar/takes.py",
+      "bytes": 7848,
+      "sha256": "98d4d4043804a51791199829068cfcc5ee25fd5e68ccc38ac598bfa258644006"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/cleanup.py",
+      "bytes": 9743,
+      "sha256": "a3d22f25f290d6d362e801f9315480a41e7f5f8336f109d88f68b8fe39b240cf"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/pipeline.py",
+      "bytes": 5831,
+      "sha256": "71f52b008a4afe6a7703fb585e1241d584462fa3543df63722268fa3c03d3c6e"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/review.py",
+      "bytes": 1590,
+      "sha256": "2058cb0d84a55a6d7bfb8c2bc7e4f7714719316cc9b8956495822c8044b433dd"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/setup_env.py",
+      "bytes": 3883,
+      "sha256": "33b7a1b13b46170dcf4dd742a66c43aa2a86f05c9de8c70642e47bf586833808"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/status.py",
+      "bytes": 4885,
+      "sha256": "625e371c28331dd40e8f0bbbdc15a0af8d25800a217518b4dda0fcb6f250de3a"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/align_words.py",
+      "bytes": 6472,
+      "sha256": "5be4cd2acb472d406e4926827fa1c6dfc7f1a6ab69eebc8f12e2f32888df9e03"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/asr.py",
+      "bytes": 4858,
+      "sha256": "71b4eb8df48ba893606dde0da3264f5ed6bd2beb4adeedd3b52303eef29b0404"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/check_key.py",
+      "bytes": 1520,
+      "sha256": "a107e52b164ebe7bebff5a70cc639ae920d15d151f45683e6af16d8e19a1fd2e"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/clone_voice.py",
+      "bytes": 8626,
+      "sha256": "73c39dfac353cb5813f4d2c0241eedf9872990a6ac844a46b5301aeed9638958"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/common.py",
+      "bytes": 16151,
+      "sha256": "b5a789b994fb522a8c049dcd2d6ed8c7210394b13ef24529b11081a4a4af79f5"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/fillers.py",
+      "bytes": 7604,
+      "sha256": "bff7826a8533d0a00901aba57de375bf7d81b48498ca19d2c7c8777c982549a9"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/project.py",
+      "bytes": 4612,
+      "sha256": "cb1fa5180f788375c46896c7f7ce4cf6dc6147054776347712280a4078639a93"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/split_check.py",
+      "bytes": 3453,
+      "sha256": "2f4a2d9d353d0e6a587fa24501cfaa9d939e2e6474878686a1710db278dbd4d5"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/split_text.py",
+      "bytes": 5795,
+      "sha256": "b28b5a003afbe481d1695a97077518e805846be4a34a2644dba04efe5d2ead03"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/synth.py",
+      "bytes": 18097,
+      "sha256": "b960ba46dae25ee285c4c1f4aa8ebae840a570ba708b7ca245733c935a70559d"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/scripts/voice/verify_audio.py",
+      "bytes": 7096,
+      "sha256": "5ab64d11069b492d871c3b603252e7a38710faa2a797e12631194c3155090b73"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/SKILL.md",
+      "bytes": 23107,
+      "sha256": "c43d31ea0d83d2a892ecac088f746c041a3a77fc6c499bf238bf435b8b88c8be"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_build_prompts.py",
+      "bytes": 8707,
+      "sha256": "1f2caef1e70b27d1e7f16ea2d242d15f9352e70f864e0a94a9351c0dd9cf156a"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_captions.py",
+      "bytes": 11572,
+      "sha256": "2596a3e28d0d9e23b9d26366a2ca77152fa07300a5b0b587d586cf0e7a56332f"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_finalize.py",
+      "bytes": 7594,
+      "sha256": "8b10e866bb1af64e7cb90c4d81c56fb5d815397932bd9e4f23c65bcc047251ef"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_jumpcut.py",
+      "bytes": 9691,
+      "sha256": "cea60b9f02a3c49117cd35c1a2107499fe10426e6321356fb16cccd8233f0f8c"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_plan_segments.py",
+      "bytes": 4923,
+      "sha256": "7953ae3a2123379e0770271b9be9220677c5f219f883cd5013902b5a2509f7d4"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_prepare_image.py",
+      "bytes": 3348,
+      "sha256": "05637ed589fc1e867d2d2dcc03b1c33571d1265529fd8488170da673a78aea19"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_retry.py",
+      "bytes": 7642,
+      "sha256": "f25872969dd440252795ea609ca932f72f7dbc3e99fc04ed3c18672474799b85"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_seed.py",
+      "bytes": 3384,
+      "sha256": "e481d69511c0b2e9a60d158c3977a91e8c4e13b9087912f57493c260c8e569c0"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/avatar/test_takes.py",
+      "bytes": 8269,
+      "sha256": "5ae602e0994d8520c3b01b6ae6c8e8b66a2e520d7fbb9eaf22e951414b3fe99d"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/test_audio_guard.py",
+      "bytes": 10208,
+      "sha256": "ea58d6326c98d1b5c34af27e44aefd4765210a21f8d31735a6dc4516a3bbdf19"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/test_cleanup.py",
+      "bytes": 5700,
+      "sha256": "f690115eabf92c9a6fbc47cc72694fedcf7f61a2095ce86afdc9035fc6699bae"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/test_hermes_guard.py",
+      "bytes": 2682,
+      "sha256": "835f0875d33926000e441db4ad5625b5827f89bc556fb522910a4fe1470ef2c0"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/test_pipeline.py",
+      "bytes": 6577,
+      "sha256": "744485b090ac254d665952a31e311650b7eb93977c1e33a0ca6624596da8bed2"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/test_review_hooks.py",
+      "bytes": 13538,
+      "sha256": "95799ea3c21bc59c2d673c1177c91d39e56ac19446749c3eb1558701ac563595"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/voice/test_preview.py",
+      "bytes": 4443,
+      "sha256": "29e7e0fa7fffde92195eb2a3fcff4608b41475ae9168aac78b8ea3593550b3f9"
+    },
+    {
+      "path": "hermes-skill/oldx-avatar/tests/voice/test_voice_stage.py",
+      "bytes": 17059,
+      "sha256": "09d637449fbfcebef0b441b72e5b1c7e524bac59b1d81d75afa3680a333bf05d"
+    },
+    {
+      "path": "hermes-skill/video-production/scripts/video_project.py",
+      "bytes": 6541,
+      "sha256": "5cc9c2258e8d2232eb8d2cac3679e45a4dab8a35ddecacf745b88d0cc8b29f6a"
+    },
+    {
+      "path": "hermes-skill/video-production/SKILL.md",
+      "bytes": 8844,
+      "sha256": "69694a0a7c77aeede57189d74656f24fef8aaaef45552d77202a51288021fc5c"
+    },
+    {
+      "path": "hermes-skill/video-prompt-director/agents/openai.yaml",
+      "bytes": 279,
+      "sha256": "dbf71906852d351bae66a479f4c792753661f1425414ffca390e9f447a127535"
+    },
+    {
+      "path": "hermes-skill/video-prompt-director/SKILL.md",
+      "bytes": 13414,
+      "sha256": "a9bb29c9e0a7e8ff141d56e8cfd21701693418eab283a3599da3edc317868b4f"
+    },
+    {
+      "path": "index.html",
+      "bytes": 800,
+      "sha256": "3f740ebdce8e58124fe81a60af8ddd0394da5e1da7c2560ab18ba3c533d55636"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 328268,
+      "sha256": "1f1ca3e2dbbe894e4e2b42a6395295e5963ae87ff360fdfca4d06855869dd3d2"
+    },
+    {
+      "path": "package.json",
+      "bytes": 4481,
+      "sha256": "1e8e6c27da288f94a62f69568f35024687c42ba717761a10c1f1dc4d51750f46"
+    },
+    {
+      "path": "README.md",
+      "bytes": 2323,
+      "sha256": "49ce4b7ea223737f5f00c736f42f96ae693243fbd6d2e9288e6b70ef6257caf6"
+    },
+    {
+      "path": "scripts/content-e2e.mjs",
+      "bytes": 8042,
+      "sha256": "60b087b1b0e8c7bfb1e660a00c016b5f8e4c84e0822d9f64908ddb00c73d210d"
+    },
+    {
+      "path": "scripts/e2e.mjs",
+      "bytes": 17762,
+      "sha256": "51c327d81096a68d8f7389ed405c361e9b8a21f73cfb5f6b7563c09930ef988a"
+    },
+    {
+      "path": "scripts/generate-icon.cjs",
+      "bytes": 1026,
+      "sha256": "8a93aa8370377d2bbb2496c22d08315c6fbaeab18aa68561d352cc728c41744e"
+    },
+    {
+      "path": "scripts/generate-third-party-notices.mjs",
+      "bytes": 1929,
+      "sha256": "d5060aa18c3f8fce5c7cceee4b48a1ec35a0a3f8695c73feae7ea6a66e0499af"
+    },
+    {
+      "path": "scripts/import-hermes-scene-config.py",
+      "bytes": 2686,
+      "sha256": "8507bc19e21f042beb9ef944ee91ba7f6f31493f9efa9664bf27d4ba42aa6c03"
+    },
+    {
+      "path": "scripts/import-hermes-video-config.py",
+      "bytes": 4503,
+      "sha256": "0147d4a355d9daf26223ce5ff0116e3a418c61b0b22edf5d95df907bee41164f"
+    },
+    {
+      "path": "scripts/import-hermes-voice-config.py",
+      "bytes": 3744,
+      "sha256": "68a16049c0a53c24736c9de477e8244cc151230fbaf053a839a07f0b1c82fa06"
+    },
+    {
+      "path": "scripts/knowledge-e2e.mjs",
+      "bytes": 17826,
+      "sha256": "bedebf9c12761ca2666405b4355b020f52d29f691ef3dd7243d5b6f0af9a7946"
+    },
+    {
+      "path": "scripts/licenses/ffmpeg-7.1/COPYING.GPLv3",
+      "bytes": 35147,
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "path": "scripts/licenses/ffmpeg-7.1/README.txt",
+      "bytes": 40515,
+      "sha256": "cf9643d68f4149f534cf5e010760cb5125b109c1ec04cfdab4fd38e968212e69"
+    },
+    {
+      "path": "scripts/member-e2e.mjs",
+      "bytes": 10858,
+      "sha256": "3ff4c4f6551b18d098b0388b7a317e1c959a647a905de80c89fc7263570fd82e"
+    },
+    {
+      "path": "scripts/package-smoke.mjs",
+      "bytes": 1700,
+      "sha256": "ceb3ef1e6870989edb30df9141e8d1cef796ab2e879582c12b8744a9014b2e06"
+    },
+    {
+      "path": "scripts/package-video-runtime.py",
+      "bytes": 19672,
+      "sha256": "d9052fb58c8b166d19452032b48a5c1bf3c688d89eb4fe249851fa3af7313420"
+    },
+    {
+      "path": "scripts/requirements-video-runtime.txt",
+      "bytes": 1068,
+      "sha256": "fe4c162a8e573ad4cb019ab77733b9f67b4bb272aafd8879a9483808990eba28"
+    },
+    {
+      "path": "scripts/test-desktop-updater.cjs",
+      "bytes": 10924,
+      "sha256": "593f1580c44dd58d75bb83039460746a24bc74254635ce016e5ef95e1812075f"
+    },
+    {
+      "path": "scripts/test-update-transport.cjs",
+      "bytes": 9831,
+      "sha256": "516af81d1182ac02df034a8aef2fa866d5a25dd6c84ac8be81787064d4ac103a"
+    },
+    {
+      "path": "scripts/test-video-desktop.cjs",
+      "bytes": 12169,
+      "sha256": "8e574e6830af0a66d9010ac167597a87c7f24154d6c81ea1925210b2e7be7521"
+    },
+    {
+      "path": "scripts/test_package_video_runtime.py",
+      "bytes": 4118,
+      "sha256": "4349b651e6eba3d998d0e61def3c65654270ee4466135038a9ac87ee46d85484"
+    },
+    {
+      "path": "scripts/test_video_runtime_bootstrap.py",
+      "bytes": 3991,
+      "sha256": "a65359407ec94e431392e756d27fbb464108615e636ea4a8e305759815664fd6"
+    },
+    {
+      "path": "scripts/verify-bundled-video-runtime.py",
+      "bytes": 14769,
+      "sha256": "62b4f0297d74fdf0d7f742209ac01c9f6334fe18037841b551630e0db47d8e62"
+    },
+    {
+      "path": "server/alembic.ini",
+      "bytes": 596,
+      "sha256": "a281d9f02fe2767173819596cff4da83b01ff6997891caa17ed785a557aaba59"
+    },
+    {
+      "path": "server/app/__init__.py",
+      "bytes": 2,
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+    },
+    {
+      "path": "server/app/articles.py",
+      "bytes": 11705,
+      "sha256": "7682df73d804c1afb57983bdc1982bf5ab751ef2b817804cb2bd435203a9cdeb"
+    },
+    {
+      "path": "server/app/auth.py",
+      "bytes": 4594,
+      "sha256": "db8bc5289e937e64e04179699fb9fb42e5635ea9eb0980fe714532e817f7cdc0"
+    },
+    {
+      "path": "server/app/auth_routes.py",
+      "bytes": 3641,
+      "sha256": "851db37e0ee66b1d9abf162798cae739f719189f4fc4f6c81b4a190d9cc75986"
+    },
+    {
+      "path": "server/app/config.py",
+      "bytes": 4048,
+      "sha256": "d5eaea64b9665251772cc7e71712429b2454347ab6c5fc079d0ce7df467a5a08"
+    },
+    {
+      "path": "server/app/content.py",
+      "bytes": 43424,
+      "sha256": "1629b5735fa63d75ef3a5166c0e70ba7d50a142691d64782612280d0148993d5"
+    },
+    {
+      "path": "server/app/content_models.py",
+      "bytes": 927,
+      "sha256": "c517348fdcc5b7ecb81029e08066f7edb18600a4252a3cc88c7b0dea0ee3e440"
+    },
+    {
+      "path": "server/app/content_schema.py",
+      "bytes": 12243,
+      "sha256": "ca4a439c5aa9f0d5cf0e7ff174dc5261ab62fbc327530527c3a52f37fe7b3883"
+    },
+    {
+      "path": "server/app/database.py",
+      "bytes": 692,
+      "sha256": "bdbbbbb7bbcaba17efc43ea43518778636803b0cc08182ec3359149a06afbcbc"
+    },
+    {
+      "path": "server/app/knowledge.py",
+      "bytes": 28765,
+      "sha256": "95b5858fa2e153e187c098c267efb579036694676af53b34f4b9ca5b60866e27"
+    },
+    {
+      "path": "server/app/knowledge_asr.py",
+      "bytes": 10053,
+      "sha256": "df190aac369a8b9ed3d345264b6dce1facfd0367bf76293fe871164bd2e119af"
+    },
+    {
+      "path": "server/app/knowledge_capture.py",
+      "bytes": 3747,
+      "sha256": "3c779eb2de994df42d756943b58e93847b64d3853d47dccf86d4a3990e20f153"
+    },
+    {
+      "path": "server/app/knowledge_cleanup.py",
+      "bytes": 2725,
+      "sha256": "f0588ff51ced9bd04dde05769053c11aad1f96459ad82e6e7edbb1b319867a4e"
+    },
+    {
+      "path": "server/app/knowledge_cloud.py",
+      "bytes": 10299,
+      "sha256": "34fa3f7e506deacadb4bb92b38041c1173e5e9752d3dd0ad003bebc8255fe4a5"
+    },
+    {
+      "path": "server/app/knowledge_costs.py",
+      "bytes": 9105,
+      "sha256": "532286124e5f11ddb3fbbe7cf2511498d3425054d6b230ec7f541b587cc746a1"
+    },
+    {
+      "path": "server/app/knowledge_dispatch.py",
+      "bytes": 5745,
+      "sha256": "1a74adae60fd58a454a4be55652784b0a688c02f2679c12eb70dd749ea144f1e"
+    },
+    {
+      "path": "server/app/knowledge_extract.py",
+      "bytes": 12761,
+      "sha256": "53d0bd338941d8a8f401e05b88fef37e1242eda744be24a02259dd052fca9ddf"
+    },
+    {
+      "path": "server/app/knowledge_extract_cli.py",
+      "bytes": 1229,
+      "sha256": "3894e80f8bcb0cc07ba2d5f32e881ce36739c95344c56e26e9f816f005cf2cf4"
+    },
+    {
+      "path": "server/app/knowledge_gateway.py",
+      "bytes": 10389,
+      "sha256": "1028f3622baf8776584f27ade3a831c4ad37e9cd920317ca889ed33eb07e70af"
+    },
+    {
+      "path": "server/app/knowledge_media.py",
+      "bytes": 4216,
+      "sha256": "f6f90e014c63bba6fca9780ada8b8f88d139035160b20a01cb7659f6e7ca7f56"
+    },
+    {
+      "path": "server/app/knowledge_models.py",
+      "bytes": 14663,
+      "sha256": "75aad201e9537a81b7cc19fe0429fc610dae3941d1344a4ef63cc4c590581e05"
+    },
+    {
+      "path": "server/app/knowledge_notifications.py",
+      "bytes": 14392,
+      "sha256": "d4e70feacea855c92269b04be84e46d71b9ea71d52db9c036f1aec047c51541a"
+    },
+    {
+      "path": "server/app/knowledge_ocr.py",
+      "bytes": 11154,
+      "sha256": "14c7a8466729ac2244ddd765b3808ae38ce7e8f1a0e891d131c1760842a97328"
+    },
+    {
+      "path": "server/app/knowledge_organization.py",
+      "bytes": 7441,
+      "sha256": "3515e2ed0a65b8ade0e644d0838ebb858fba1e39348891231dc319fa437c68a8"
+    },
+    {
+      "path": "server/app/knowledge_provider_trace.py",
+      "bytes": 2521,
+      "sha256": "e91b5d3426b177a66b1194e8fe6d3e91234bd04e3cf43b5171e515b49261537a"
+    },
+    {
+      "path": "server/app/knowledge_semantic.py",
+      "bytes": 16245,
+      "sha256": "e192ee4654ebdc15968f39e4942612fdcb8479bb335efe34fc5854608c77ca37"
+    },
+    {
+      "path": "server/app/knowledge_service.py",
+      "bytes": 9811,
+      "sha256": "fed3db4e0f70031f7954093f63aa7a8ee6160cf444b77c2541404a5e118c5229"
+    },
+    {
+      "path": "server/app/knowledge_silk.py",
+      "bytes": 1238,
+      "sha256": "bef76e5ac23066b32cd0545c1139bc39fe4a7c0504b69573d30863beb064b9ad"
+    },
+    {
+      "path": "server/app/knowledge_teams.py",
+      "bytes": 12619,
+      "sha256": "2823ca1b44d29daef795abc240cc03116fbd2f48434acc7fcc6194e4472bf8cd"
+    },
+    {
+      "path": "server/app/knowledge_usage.py",
+      "bytes": 2798,
+      "sha256": "959f49156a054c20155f77026d82927fef616282782507a7019cc43701cfcd34"
+    },
+    {
+      "path": "server/app/knowledge_video_ocr.py",
+      "bytes": 4263,
+      "sha256": "0fa42560d4a15faa19af4ea88fdf2c401055fee46a6fa743eaf2c96195b31d81"
+    },
+    {
+      "path": "server/app/knowledge_worker.py",
+      "bytes": 13044,
+      "sha256": "202f356e068512565aa84f631742feb3d3cdca044e31c9e16649d2c7b81c2614"
+    },
+    {
+      "path": "server/app/main.py",
+      "bytes": 21568,
+      "sha256": "966c74c0b4a99f7c8dff0301c5627a2ed550957fa681a9164acc5ed67438ff2d"
+    },
+    {
+      "path": "server/app/member_service.py",
+      "bytes": 3749,
+      "sha256": "3ec5f8eeffa8e1cda91d8fe85844016aea304342e7e0ed88f3c34ee2dfbf334f"
+    },
+    {
+      "path": "server/app/members.py",
+      "bytes": 5429,
+      "sha256": "53e67fa7fba7a1d5934473e5187095ff732b5a4648e1c9ccd11e439bde7c4899"
+    },
+    {
+      "path": "server/app/models.py",
+      "bytes": 10097,
+      "sha256": "5ecc1700f05aca2e57366e250a7bae8df3a94a1a89a3bd9fd1fdeaa2d2e21040"
+    },
+    {
+      "path": "server/app/reminders.py",
+      "bytes": 1101,
+      "sha256": "daa74d83f887b1df60c3be4181a655a7ee3afc58edf4b7aaa67270a89e6355fe"
+    },
+    {
+      "path": "server/app/schemas.py",
+      "bytes": 7210,
+      "sha256": "c96593faa5da4f34a6a9eef1cb0a1a4523468044fdef74548871b9882692ddd6"
+    },
+    {
+      "path": "server/app/video.py",
+      "bytes": 11728,
+      "sha256": "3ab434226699f1c0188fa059ffaeb81ed5842bf1ba5b1ad91f45a4cbc9dae8b9"
+    },
+    {
+      "path": "server/app/video_desktop.py",
+      "bytes": 15783,
+      "sha256": "88b9ff29116a54aa5e3bdbef16f4bfce326d0e0d61b2aa0c0077ebba32316e48"
+    },
+    {
+      "path": "server/app/video_hermes_config.py",
+      "bytes": 8369,
+      "sha256": "219f7243d1e6f00a5d0f9157b87ccc119578d7c7697f7e468f34b2be60b78415"
+    },
+    {
+      "path": "server/app/video_hermes_scene_config.py",
+      "bytes": 3410,
+      "sha256": "47f0f511cdc79d31963b8d2bf2838b501bd7bd2b7abfb8b1b4f2ebc605e94876"
+    },
+    {
+      "path": "server/app/video_hermes_voice_config.py",
+      "bytes": 4791,
+      "sha256": "394c3f67bc57c4ea2c4dd466d196e7ec9537c184d68ec51853b65495fa0a73b5"
+    },
+    {
+      "path": "server/app/video_pricing.py",
+      "bytes": 3485,
+      "sha256": "59e7ce8e26536f7fa421016bad0cc82d049b2faa6fdd33e36ff814cb3cc4f6c6"
+    },
+    {
+      "path": "server/app/video_project_models.py",
+      "bytes": 3234,
+      "sha256": "81ad4d0b9fbd4914fc53dd5f4d44ecc66f1e2552f5b92939026a325af11c9176"
+    },
+    {
+      "path": "server/app/video_projects.py",
+      "bytes": 58599,
+      "sha256": "ecb109139ee617565bd467f707f56200cded94c3b695a4829cf27ad13903b3dd"
+    },
+    {
+      "path": "server/app/video_runninghub.py",
+      "bytes": 13236,
+      "sha256": "5485a566ee9707daf50ed7e39b439516025710e85cc79fbe71aab21140bced19"
+    },
+    {
+      "path": "server/app/video_runtime.py",
+      "bytes": 88857,
+      "sha256": "9213370184492708bf18438c271bc7f2ecc79aa756e658612dfee72d9e070540"
+    },
+    {
+      "path": "server/app/worker.py",
+      "bytes": 9520,
+      "sha256": "ce9638d593ba8c0918a6274fab33e1dd6fb00e293d8239bf74d6cb3af2ba22f4"
+    },
+    {
+      "path": "server/migrations/env.py",
+      "bytes": 1381,
+      "sha256": "532498b69d9a7a036f1db229d757ef8c5962070185b870012dee31fb9d022ca2"
+    },
+    {
+      "path": "server/migrations/script.py.mako",
+      "bytes": 617,
+      "sha256": "a5ac647137cc264669781005aca8642744b3666272769fbeb55cb83c5bdee2c3"
+    },
+    {
+      "path": "server/migrations/versions/20260811_01_add_article_store.py",
+      "bytes": 3832,
+      "sha256": "c2e49e94ea6188a007a28613c414d3471c485cfbf166d7c84e0335a24a7ba8e2"
+    },
+    {
+      "path": "server/migrations/versions/20260818_01_add_user_login.py",
+      "bytes": 2431,
+      "sha256": "b25bddadc55c757541ca7036b4008d826230da6e1e9b6739a183ff9c2d712858"
+    },
+    {
+      "path": "server/migrations/versions/20260915_01_add_content_studio.py",
+      "bytes": 1225,
+      "sha256": "1d5356c8c031561e6e5de3636c88b9df6228eaf5a2ab013ff78a038c3ee1210a"
+    },
+    {
+      "path": "server/migrations/versions/20260928_01_member_management.py",
+      "bytes": 466,
+      "sha256": "7125751cd329d403fe3e4d2bf92ff4b3c39124de3cd374714e34fbfd99e0d878"
+    },
+    {
+      "path": "server/migrations/versions/20261008_01_knowledge.py",
+      "bytes": 4547,
+      "sha256": "2a8c88b86a10b20bd22aa2f6387c3af117872f139701a44e4ff9961f72d18447"
+    },
+    {
+      "path": "server/migrations/versions/20261008_02_knowledge_cleanup.py",
+      "bytes": 1133,
+      "sha256": "f04f4abef1ef5a8e47113e8e1aec2080cf87909ca6c9486b8868a9dc39bda288"
+    },
+    {
+      "path": "server/migrations/versions/20261008_03_knowledge_ocr.py",
+      "bytes": 1516,
+      "sha256": "d48b01a4658097e306da417ac214b3c4b248adb49e1ebe6af35992f520b87aa9"
+    },
+    {
+      "path": "server/migrations/versions/20261008_04_knowledge_usage.py",
+      "bytes": 1119,
+      "sha256": "65d417b41e7f908e55717cf3c833cd91646d4a690c0e297283ca36cecc60d7c0"
+    },
+    {
+      "path": "server/migrations/versions/20261008_05_knowledge_organization.py",
+      "bytes": 1376,
+      "sha256": "0ff32ac902563c6c716a261c32fc91db4b020b4d202bac8a10647a6f26df61ab"
+    },
+    {
+      "path": "server/migrations/versions/20261008_06_knowledge_semantic.py",
+      "bytes": 1409,
+      "sha256": "f7ee1b48c5a8867aa95e600c8851b26606f9ce1508e6e8f2b8ef3ef92ea0c81f"
+    },
+    {
+      "path": "server/migrations/versions/20261008_07_knowledge_teams.py",
+      "bytes": 2688,
+      "sha256": "b1157bc9ecae7730aa4124cbbc9f221265d35e670821fb2c022069fe31697fac"
+    },
+    {
+      "path": "server/migrations/versions/20261008_08_knowledge_ingress.py",
+      "bytes": 1117,
+      "sha256": "ddbe36c563619862892205e30767370c1a444608eae737f13022c85481a3df33"
+    },
+    {
+      "path": "server/migrations/versions/20261008_09_knowledge_notifications.py",
+      "bytes": 3059,
+      "sha256": "8a9a89cd6684bb2425874967eab215a7e7fa046a9cb913a365fce69b81798f6c"
+    },
+    {
+      "path": "server/migrations/versions/20261008_10_knowledge_media.py",
+      "bytes": 1399,
+      "sha256": "756c6fee9b23f1af0850da671971b3936f704f6ee27b76bb9d1b99e92f849d18"
+    },
+    {
+      "path": "server/migrations/versions/20261008_11_knowledge_costs.py",
+      "bytes": 1340,
+      "sha256": "ca0681e6775c97ab99f2b16c06eb991037eeab5fddfcb1c0807184ceb2c6a763"
+    },
+    {
+      "path": "server/migrations/versions/20261008_12_knowledge_provider_trace.py",
+      "bytes": 1304,
+      "sha256": "11b3e540579ef8a86aa3eaa66291a56d542e7995d4330f9182f7e4e3f8fbba25"
+    },
+    {
+      "path": "server/migrations/versions/20261019_01_video_projects.py",
+      "bytes": 3511,
+      "sha256": "c6f940a6b5cf4a18d691d2e3bbeee60148e50ddae5a4b281253b5826d7065086"
+    },
+    {
+      "path": "server/requirements.txt",
+      "bytes": 201,
+      "sha256": "1907555ca2adf49daf7eda7fdff98441224ab8d7da020fc584b1ec041a7f1689"
+    },
+    {
+      "path": "server/scripts/run_video_desktop.py",
+      "bytes": 4542,
+      "sha256": "3eac6da165d5fd999be04617f3e2fa3a1e4318f09d54880c1c5f99ddbab8a9cc"
+    },
+    {
+      "path": "server/scripts/run_video_local.py",
+      "bytes": 8323,
+      "sha256": "1b7917850053752e380cd170260daddb26676ee2ed3ee87cbed7c451be921c5f"
+    },
+    {
+      "path": "server/tests/content_preview.py",
+      "bytes": 4264,
+      "sha256": "09718c59de0944804c083e1a0637a43a97f75146ee1de461f3bf1fa4b24210b3"
+    },
+    {
+      "path": "server/tests/knowledge_preview.py",
+      "bytes": 5067,
+      "sha256": "6ba14c16322c02ea7a373bf14ead3954f88f1b6b07157ed23f1721ee8ff7a101"
+    },
+    {
+      "path": "server/tests/member_preview.py",
+      "bytes": 1350,
+      "sha256": "0e1bbc4909dac5f106769e5fb58a60d4748ad6f963e3563c098bf841eb5801e9"
+    },
+    {
+      "path": "server/tests/test_api.py",
+      "bytes": 24370,
+      "sha256": "35ce0040dd9c85991f4698338b1178de2c70dc45701b63bc6e2d18877e101a9d"
+    },
+    {
+      "path": "server/tests/test_config.py",
+      "bytes": 1254,
+      "sha256": "7d55c9fc84d8456426f209cb71f8d75c7031f74ddf90acb677eefa2c6771488b"
+    },
+    {
+      "path": "server/tests/test_content_api.py",
+      "bytes": 15533,
+      "sha256": "dec568d6373ea3104cbbb1bbbb310163d83134a8a15f01a70ae7b9b4e935fa27"
+    },
+    {
+      "path": "server/tests/test_knowledge.py",
+      "bytes": 31245,
+      "sha256": "4273252a7e8f93a6e6e948a70f65a86845ea85d23fd9c0f93d5bc8a54a9ea8b3"
+    },
+    {
+      "path": "server/tests/test_knowledge_asr.py",
+      "bytes": 7047,
+      "sha256": "879319cd4db809bba09f968d90d21ef55a10bd262f2aefdf6f12badea52bfb18"
+    },
+    {
+      "path": "server/tests/test_knowledge_capture.py",
+      "bytes": 2026,
+      "sha256": "5fafb77568f5978704c955aafdd8d0d59a383b65cd12530da97ec27241d30428"
+    },
+    {
+      "path": "server/tests/test_knowledge_cloud.py",
+      "bytes": 6399,
+      "sha256": "90b8bc14af1cc7fc02c8b4f78a851f5a51b883846d176079742828de5e4be7ec"
+    },
+    {
+      "path": "server/tests/test_knowledge_costs.py",
+      "bytes": 3493,
+      "sha256": "bb70ef0636b05df4d36dfe7dbe075dcbd328c1da3cc1d25d0edabb65f54f3a6d"
+    },
+    {
+      "path": "server/tests/test_knowledge_media.py",
+      "bytes": 3328,
+      "sha256": "afcc51561f76ea4703ce1002b7bf9a8dc63c0bc7f90c1c7c2f590523289e4a5f"
+    },
+    {
+      "path": "server/tests/test_knowledge_migration.py",
+      "bytes": 2637,
+      "sha256": "59b5a440c8757510680056f16505017a214c598e4da8010e0e63b89e8f8e9459"
+    },
+    {
+      "path": "server/tests/test_knowledge_notifications.py",
+      "bytes": 4973,
+      "sha256": "c796892445bc6ec6c19f26ba8f3d12007749662dfe20b3f64dbeeccabcdeb004"
+    },
+    {
+      "path": "server/tests/test_knowledge_ocr.py",
+      "bytes": 9313,
+      "sha256": "d120ea21a7c080f0939af28e2662cd8cb3b91f7883895036138edce1d6e8e58c"
+    },
+    {
+      "path": "server/tests/test_knowledge_organization.py",
+      "bytes": 3819,
+      "sha256": "cd413e3d1c62425bc966a9d2dd758d3677fc4f3da3c31b23aec062aee401fb85"
+    },
+    {
+      "path": "server/tests/test_knowledge_semantic.py",
+      "bytes": 4201,
+      "sha256": "075d144092cb2f97a774db634a2999a84837cfb709e43b054e7160cad79e56e0"
+    },
+    {
+      "path": "server/tests/test_knowledge_teams.py",
+      "bytes": 3376,
+      "sha256": "01468f2cf2dce65b9217740e8f6fa128790eaa3300f77f48419045c17af71f59"
+    },
+    {
+      "path": "server/tests/test_knowledge_video_ocr.py",
+      "bytes": 2418,
+      "sha256": "f51bb4d47d85262677aadd6838eb919c6e44eb9acfde14c99938b4ca6c7a7cfe"
+    },
+    {
+      "path": "server/tests/test_member_migration.py",
+      "bytes": 1293,
+      "sha256": "4bffd557cccc5823192015d127cd8b145b50d62f0d5e8f117e875c7d72cdb11e"
+    },
+    {
+      "path": "server/tests/test_members.py",
+      "bytes": 11140,
+      "sha256": "c14e7b0d19ca84c6df66ff1ac651e8e2437d047c9f66e67614dd585fbbd94919"
+    },
+    {
+      "path": "server/tests/test_video_api.py",
+      "bytes": 10650,
+      "sha256": "ebbff12fa9ff31f643e05c2556a61f5da417a776f9f9ef255af5ed8bcc6ae07a"
+    },
+    {
+      "path": "server/tests/test_video_avatar_billing.py",
+      "bytes": 29793,
+      "sha256": "53e91942a3993f85af7c9acf7f5532c3a6df99a013ab786d843d5aeb0830abfe"
+    },
+    {
+      "path": "server/tests/test_video_desktop.py",
+      "bytes": 14213,
+      "sha256": "c654607e44ec842b7236bb74110dcbe3b30adb42a354a83ad09826acc9c771bc"
+    },
+    {
+      "path": "server/tests/test_video_hermes_config.py",
+      "bytes": 7663,
+      "sha256": "fe3422d71e2341a4b4fb6f85dff34566477402d32984bd3ab2a710d3f49e2e38"
+    },
+    {
+      "path": "server/tests/test_video_hermes_scene_config.py",
+      "bytes": 5371,
+      "sha256": "ca5b83f23556870ae0600564ed9337af919e31d95c39fd3c43abd23e7d119ced"
+    },
+    {
+      "path": "server/tests/test_video_hermes_voice_config.py",
+      "bytes": 9337,
+      "sha256": "81ac9e1c9a2c7533de27ffc653b876407ad128ac083f2894b288017a2027c7d9"
+    },
+    {
+      "path": "server/tests/test_video_local_config.py",
+      "bytes": 3436,
+      "sha256": "5e716ab38bd06631356efe9b48b6f74bc67b8bd54a0bc043b4365ec70c804f2c"
+    },
+    {
+      "path": "server/tests/test_video_projects.py",
+      "bytes": 79473,
+      "sha256": "21634fcf996467f9000a0312e4656d155ace941892a38a3ef790df2cef912de1"
+    },
+    {
+      "path": "server/tests/test_video_runninghub.py",
+      "bytes": 13243,
+      "sha256": "e8c6cf3b00a3285eb69f8047ceea3a87c88c32f6b227027e327cac4f3e387539"
+    },
+    {
+      "path": "server/tests/test_video_runtime.py",
+      "bytes": 85826,
+      "sha256": "147419ec646d1053e0204a5f3bfc0f34038400aa24879099d632b915a3487d71"
+    },
+    {
+      "path": "server/tests/test_video_skill_client.py",
+      "bytes": 2958,
+      "sha256": "b386d09c84fc5baf4c8cc3a7746749209ddbd56f937659b7cb26d8116e26705d"
+    },
+    {
+      "path": "server/tests/test_video_voice_billing.py",
+      "bytes": 13645,
+      "sha256": "702fba98225240b6c6f8555289db90f3352806159fc2fdd3fe60054bb0b8c76a"
+    },
+    {
+      "path": "server/tests/test_video_voice_wiring.py",
+      "bytes": 8983,
+      "sha256": "e4fa3b1ac0ea721cb73258d32248af1dfa43392599f0155561b67f3c19500177"
+    },
+    {
+      "path": "src/App.test.tsx",
+      "bytes": 25594,
+      "sha256": "40323c158bc8fb4af844c719bbd7b0ad8759c7670d4db1e88e8b5f056e3e9791"
+    },
+    {
+      "path": "src/App.tsx",
+      "bytes": 44084,
+      "sha256": "bf1b0ecebc0882d498bf0b544fac28cfbd985740da66eb9a226f02e99b32308a"
+    },
+    {
+      "path": "src/assets/content-health-cover.png",
+      "bytes": 1492947,
+      "sha256": "e7f1e77fbf2573abdc674068fffd8ade329aec36bbb45f6364d8f6da47518364"
+    },
+    {
+      "path": "src/assets/content-health-cover.webp",
+      "bytes": 35222,
+      "sha256": "9b464f075a60fb06306402b58cd64c1012c0df922dbde3a18deab7d2a829d142"
+    },
+    {
+      "path": "src/assets/mayi-logo.png",
+      "bytes": 181494,
+      "sha256": "21074c1f5ea45c402a52923e840b850d9c82daa04136a8475d036d789c58b7f8"
+    },
+    {
+      "path": "src/assets/mayi-logo.webp",
+      "bytes": 7410,
+      "sha256": "3258f35fe628ed10f7a697501f10166b05ad09d5f91626a8391cca1f9815940a"
+    },
+    {
+      "path": "src/assets/mayi-symbol.png",
+      "bytes": 157116,
+      "sha256": "9c8b9ce942d43f5fdc4e0b2a03f28e8de87d1b5bc2fa4e599643b10ea9bb653e"
+    },
+    {
+      "path": "src/components/ChannelDialog.tsx",
+      "bytes": 11920,
+      "sha256": "bef3e2b79d0581603806ca1234cdbbbea2720e6ab89e5f825fbd93737980d9cf"
+    },
+    {
+      "path": "src/components/ChannelsView.tsx",
+      "bytes": 6250,
+      "sha256": "98940d87a930891516e9a88fc6104921c567ac60253ba1109fd2f2e2518f8045"
+    },
+    {
+      "path": "src/components/content/content-studio.css",
+      "bytes": 17248,
+      "sha256": "0729037fbc52630120c44d579a88c6d373894e1735887396bc58284047754ed5"
+    },
+    {
+      "path": "src/components/content/ContentFields.tsx",
+      "bytes": 11916,
+      "sha256": "54a2f5cdd525e997fb69034f0c56ba3e17b9a508b3cb68d1cd90d36cc595b44d"
+    },
+    {
+      "path": "src/components/content/ContentStudio.test.tsx",
+      "bytes": 3118,
+      "sha256": "a7c66faa53ba39bed58f93a8d1b28cbfd0d77e94f188b3618525dddf156260a0"
+    },
+    {
+      "path": "src/components/content/ContentStudio.tsx",
+      "bytes": 39191,
+      "sha256": "184867b3c1b67af1e5091ce9df17415e3db28a33021876e5782d0c4689ade23f"
+    },
+    {
+      "path": "src/components/ContentGenerationView.test.tsx",
+      "bytes": 1048,
+      "sha256": "f1c49af1bd1a9363e198e9c2850ba9713a84c0743d754f3a26928f6b2d228cef"
+    },
+    {
+      "path": "src/components/ContentGenerationView.tsx",
+      "bytes": 1383,
+      "sha256": "87505ef30d0b995a37fdb8d04b87bee6af9a7264dff39fc29f0e4099dcb71105"
+    },
+    {
+      "path": "src/components/knowledge-workspace.css",
+      "bytes": 11543,
+      "sha256": "e6472111f4fcc068d8561f18caaf3ab78ec1478052078a9d18494b287e69a55b"
+    },
+    {
+      "path": "src/components/KnowledgeAsr.tsx",
+      "bytes": 2785,
+      "sha256": "a2cc739aed3debe57cc25fe2ea82b523b166c4e47c7c72acbeb03841bf42290b"
+    },
+    {
+      "path": "src/components/KnowledgeCosts.tsx",
+      "bytes": 6543,
+      "sha256": "b7cbac354558ca5a9a5229f075de5e884182b4e0b3a796bfcb6402f4d2b13271"
+    },
+    {
+      "path": "src/components/KnowledgeFolderWatch.tsx",
+      "bytes": 2624,
+      "sha256": "17a3c8807093f4e7b625a9d125cf88298f18468d1d8fe34a21d76c4dea68301f"
+    },
+    {
+      "path": "src/components/KnowledgeHistory.test.tsx",
+      "bytes": 3764,
+      "sha256": "985136a0a1cbe0ebab531a59d6d248133e03f3a794a2aa7a62f7f28de8d3d5c1"
+    },
+    {
+      "path": "src/components/KnowledgeHistory.tsx",
+      "bytes": 4690,
+      "sha256": "7bd6a8c0292a744ae263b1f9897a083ceb3749e4f38dd59fb4d62b96f7304826"
+    },
+    {
+      "path": "src/components/KnowledgeLinkImport.tsx",
+      "bytes": 3139,
+      "sha256": "9311f5f583c8b02fd0e6d5be07d8333eb8621de68d7f5d56b7113b86ee56708b"
+    },
+    {
+      "path": "src/components/KnowledgeMediaMerge.tsx",
+      "bytes": 3293,
+      "sha256": "874ea0e5f3b0a62a80646100e3c23a02fc7eb543d2a4bfab8552f99761b7df19"
+    },
+    {
+      "path": "src/components/KnowledgeNotificationListener.tsx",
+      "bytes": 2487,
+      "sha256": "1264a34b565792a2a3a7601fb54d009172776b04baa092eea8ab87bb4ded5f1a"
+    },
+    {
+      "path": "src/components/KnowledgeNotifications.tsx",
+      "bytes": 5245,
+      "sha256": "c9e5a6080eb6afa76447b575fa99649cb960900c1a4dc6f0a7ad59ad3406ce3e"
+    },
+    {
+      "path": "src/components/KnowledgeOcr.tsx",
+      "bytes": 2442,
+      "sha256": "c34e89ce69dd9006be5a082785bbc3213e3bfbc899a6ac58313d59dfeb87a0b4"
+    },
+    {
+      "path": "src/components/KnowledgeOperations.tsx",
+      "bytes": 3014,
+      "sha256": "64b45a23f565875e6ea5ab656523119147a57b770c397b5c6b6471bda6443d2d"
+    },
+    {
+      "path": "src/components/KnowledgeOrganization.tsx",
+      "bytes": 4239,
+      "sha256": "651f7367052dc9e6451f4e9c87ed496adb9e24aebf8e5a3bdf7719831593763d"
+    },
+    {
+      "path": "src/components/KnowledgeSemantic.tsx",
+      "bytes": 3950,
+      "sha256": "9106e52b611c19096492504f0466754a7dd9c5c6f5c6e1f72c6f8b2e1333b769"
+    },
+    {
+      "path": "src/components/KnowledgeSemanticBatch.tsx",
+      "bytes": 3592,
+      "sha256": "9bba77df61003243f43254761a3ae8dcb12b98d0e0b9fd62f89faf138a0efd79"
+    },
+    {
+      "path": "src/components/KnowledgeShare.tsx",
+      "bytes": 2642,
+      "sha256": "98a77915d01bd9b3dd6517afc9946deaf68b989836fbb4d59e4abffd761e4645"
+    },
+    {
+      "path": "src/components/KnowledgeTeams.tsx",
+      "bytes": 10169,
+      "sha256": "245d56e9df4733474dddbbe8ee46bb12d9a76123fdf76ed6ac156cf0e2c674b5"
+    },
+    {
+      "path": "src/components/KnowledgeUsage.tsx",
+      "bytes": 2412,
+      "sha256": "632367c109d914dee0b4bca8e5a7f8217a678c2c16068d26e3469591a5b456d3"
+    },
+    {
+      "path": "src/components/KnowledgeVideoOcr.tsx",
+      "bytes": 2477,
+      "sha256": "a135e07a19b5c8259bd76cd6ea690a2cdbd21bfecf6f7d6a86db0c4e5150fe65"
+    },
+    {
+      "path": "src/components/KnowledgeWorkspace.test.tsx",
+      "bytes": 17127,
+      "sha256": "f8ed06da1706e475778c86da4e3ed8af20301d04f2e88aba7e17c2ff2e0d3bee"
+    },
+    {
+      "path": "src/components/KnowledgeWorkspace.tsx",
+      "bytes": 38713,
+      "sha256": "89e068c49cff7bceabc873cd3a99479372062418b76baaa4ed2aa80f8b116362"
+    },
+    {
+      "path": "src/components/LoginView.tsx",
+      "bytes": 4757,
+      "sha256": "d4f2a495b30a41923953a903959f45252bc523a3a4b15d43276127beeedef03a"
+    },
+    {
+      "path": "src/components/member-management.css",
+      "bytes": 5719,
+      "sha256": "2a0444a71608b1bae0129668fb413fe075678762d35536b30271239091bf27d6"
+    },
+    {
+      "path": "src/components/MemberManagement.test.tsx",
+      "bytes": 7629,
+      "sha256": "ea68f671fb86178ff5f711ff103d4821f48c8ddbc56f6679136596f8065b3ed7"
+    },
+    {
+      "path": "src/components/MemberManagement.tsx",
+      "bytes": 15312,
+      "sha256": "67d32ecf5883232465fa34f5a11aed4db77a4457b3b6fb94bb57e03f3e00d8b3"
+    },
+    {
+      "path": "src/components/MessageWorkspace.tsx",
+      "bytes": 12958,
+      "sha256": "1d88c7c124acee7f3be847f13bb25af2e51a57f285978ab55b8042787ab113f1"
+    },
+    {
+      "path": "src/components/SettingsView.tsx",
+      "bytes": 11355,
+      "sha256": "ab48b577ee9c40bfbb6065a620d2acf6b42fcc7ef9703f14b0a3f5c1e64e477a"
+    },
+    {
+      "path": "src/components/Sidebar.tsx",
+      "bytes": 4614,
+      "sha256": "e5acd4c263a78e190c2432eda9db943a9fb4c12438c34e795c7d0ba6382dcac4"
+    },
+    {
+      "path": "src/components/TaskDialog.tsx",
+      "bytes": 5810,
+      "sha256": "fc3d21a0dd774fef0a521e21eeb6f7063b03e9802c21037bc3975cb238ce2c07"
+    },
+    {
+      "path": "src/components/TaskWidget.test.tsx",
+      "bytes": 9185,
+      "sha256": "3ae2d785c32edc43bc47dab520868c96f7fc553edfb75f2bcdb0744db81b4e4d"
+    },
+    {
+      "path": "src/components/TaskWidget.tsx",
+      "bytes": 12982,
+      "sha256": "334ae3850ad88940aeac8c8b581e6f5d3c08723414120af7579f8fd0c22966d1"
+    },
+    {
+      "path": "src/components/TaskWorkspace.test.tsx",
+      "bytes": 3753,
+      "sha256": "40f5ec0346cd5f05d0f97fe329a1d22820b7c12a1178290ab622928a9d3c0d0d"
+    },
+    {
+      "path": "src/components/TaskWorkspace.tsx",
+      "bytes": 16363,
+      "sha256": "88639d59548c4e2b89a7dcabf65100f64aecce0020d5ed482e4b2f66aaad95c9"
+    },
+    {
+      "path": "src/components/Toast.tsx",
+      "bytes": 1043,
+      "sha256": "2a329b7e110a7d65bb94443d7a4de4fcecef254e99cddec407eb5afa2e1f3e48"
+    },
+    {
+      "path": "src/components/Topbar.tsx",
+      "bytes": 3584,
+      "sha256": "9097f4d9a290d84cf8ffa70b428d11b96d49d939c21853d91bfd098c8c295123"
+    },
+    {
+      "path": "src/components/VideoGenerationWorkspace.css",
+      "bytes": 12647,
+      "sha256": "731518d0079e1580ea25a773aef2fd2c2ea45d07de63284d5d11046f8647c0ac"
+    },
+    {
+      "path": "src/components/VideoGenerationWorkspace.test.tsx",
+      "bytes": 62658,
+      "sha256": "a73ffd296ecd2bef9682feb7de43109852976ff16b7ebfa87c5a5fdbe4ce7da6"
+    },
+    {
+      "path": "src/components/VideoGenerationWorkspace.tsx",
+      "bytes": 68948,
+      "sha256": "c8d140deb2049b4fed40475ab00151158c00b07daec8dafb9e4ec9e865bf9eb2"
+    },
+    {
+      "path": "src/data/demo.ts",
+      "bytes": 5496,
+      "sha256": "3fdc2ac57d082b911b274498809b2cbe5498360933c4d4c14c1cd24d39969cfb"
+    },
+    {
+      "path": "src/lib/articleApi.test.ts",
+      "bytes": 3501,
+      "sha256": "b84a1ab05aa1d5840b4d5d66ede0f9af8058879ceb2747890b73ac1880746e34"
+    },
+    {
+      "path": "src/lib/articleApi.ts",
+      "bytes": 4787,
+      "sha256": "74fb9d0bce710e5243e696756aeb52271a7076317d22b9376c1ae81226797959"
+    },
+    {
+      "path": "src/lib/authApi.test.ts",
+      "bytes": 1191,
+      "sha256": "dd442c1fae56190df470b3b70d4a6cc58ad9388f96dd663539cce48a1850e0ef"
+    },
+    {
+      "path": "src/lib/authApi.ts",
+      "bytes": 2324,
+      "sha256": "eec707726692f671338c15e2d70afeea47bb612af2a335965e8c5dcaeda5ebcc"
+    },
+    {
+      "path": "src/lib/channelRules.test.ts",
+      "bytes": 935,
+      "sha256": "a0755e572c0efe0596eda1d0b628f9a048ade94b53e18c973c0bc7422b50aa82"
+    },
+    {
+      "path": "src/lib/channelRules.ts",
+      "bytes": 1771,
+      "sha256": "ab1dc3d67920e22cc4f78f0ae86127d358486cfc898329d40d3a1c3cbe0596e9"
+    },
+    {
+      "path": "src/lib/contentApi.ts",
+      "bytes": 6353,
+      "sha256": "cf0e95fbda228472f8602d423f1c85d068b10e4d078c44a41a0e6895a5e31ada"
+    },
+    {
+      "path": "src/lib/knowledgeApi.ts",
+      "bytes": 15991,
+      "sha256": "4f67cd8b8c825983d6d69cfadf3f9cb631b8bac44e689d95c1263ffd221e9621"
+    },
+    {
+      "path": "src/lib/memberApi.ts",
+      "bytes": 2232,
+      "sha256": "4b17c580b8d353abb2bb0445bdb993053c4961633062452ce653b530f7147937"
+    },
+    {
+      "path": "src/lib/ntfy.test.ts",
+      "bytes": 5420,
+      "sha256": "4b880fbe140bdd566502442edf7037db792318368d3df2a7dd9d681f7714d016"
+    },
+    {
+      "path": "src/lib/ntfy.ts",
+      "bytes": 4901,
+      "sha256": "0e3db798980d308d520704a62724994a4b0c04c4c58f576b883d6a4e75815214"
+    },
+    {
+      "path": "src/lib/storage.ts",
+      "bytes": 2051,
+      "sha256": "6b4686536decaffc9b5692d6828c7bfb72b1fd1d66fc8cc9b48d3bc97268b1b4"
+    },
+    {
+      "path": "src/lib/taskApi.ts",
+      "bytes": 4877,
+      "sha256": "ead667b0a5e5f0df764be9a7259f9ee7f87dcfb825f4539c070bf3b70a9a05ee"
+    },
+    {
+      "path": "src/lib/trash.test.ts",
+      "bytes": 990,
+      "sha256": "1a5b2fd93e76001aa36d5c4363feaecb233487572e44596a479dc8117f9de4dc"
+    },
+    {
+      "path": "src/lib/trash.ts",
+      "bytes": 615,
+      "sha256": "973188274ebe23292f1272a89d0982b5e3b055b142bb4bae8d6f4b693111dedf"
+    },
+    {
+      "path": "src/lib/videoApi.test.ts",
+      "bytes": 11002,
+      "sha256": "9da1ca87578ba9b7708cbbef03f2ede35a19050a7f6b23380c68c5787eb3a42e"
+    },
+    {
+      "path": "src/lib/videoApi.ts",
+      "bytes": 13688,
+      "sha256": "44d45b592ef8e633b59dcd1e571a969571e12482249f187ab692d0f7c2edb7ed"
+    },
+    {
+      "path": "src/main.tsx",
+      "bytes": 428,
+      "sha256": "87a64a11893796ef40cb6449ac42dadb6da003f03f28946315299ac78fee8420"
+    },
+    {
+      "path": "src/styles.css",
+      "bytes": 101341,
+      "sha256": "f447bcf3a6bfb9ae4980a1446a602b7482356f309a9800cfbd943a28fd21b701"
+    },
+    {
+      "path": "src/test/setup.ts",
+      "bytes": 448,
+      "sha256": "753debc067c40c65d64599373df56c7896b8859021941ddf5b09bf0ec92e6cd0"
+    },
+    {
+      "path": "src/types.ts",
+      "bytes": 4088,
+      "sha256": "caaeb9ab9b974171f40c596506221b31eeaede7310f68dbedd518002c1da515c"
+    },
+    {
+      "path": "src/vite-env.d.ts",
+      "bytes": 3213,
+      "sha256": "1fbc5280fedf489ccda0728b3be5411fd2777792deda9e1fab87d4fda7e84e1c"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 608,
+      "sha256": "200957cfd16a713b4846a2b9ab54d19f1518a6951c5a52019f1fe307955b72e5"
+    },
+    {
+      "path": "vite.config.ts",
+      "bytes": 325,
+      "sha256": "5ac5710f3eb924ef169bf1f36b3e7a3b2500f22bb5e07b4d7376c264d16c1a4d"
+    }
+  ],
+  "excluded_member_count": 8
+}

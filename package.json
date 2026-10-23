@@ -1,0 +1,151 @@
+{
+  "name": "signaldesk-desktop",
+  "version": "0.6.0",
+  "private": true,
+  "description": "迈医协同企业智能协作桌面端。",
+  "main": "electron/main.cjs",
+  "author": "迈医科技",
+  "license": "UNLICENSED",
+  "scripts": {
+    "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "dev:web": "vite --host 127.0.0.1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build:web": "vite build",
+    "build": "npm run typecheck && npm run test && npm run build:web",
+    "icon:generate": "node scripts/generate-icon.cjs",
+    "notices": "node scripts/generate-third-party-notices.mjs",
+    "dist:win": "npm run icon:generate && npm run build && npm run video:runtime && electron-builder --win nsis --x64 --publish never",
+    "dist:mac": "npm run icon:generate && npm run build && electron-builder --mac dmg zip --x64 --arm64 --publish never",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:content": "node scripts/content-e2e.mjs",
+    "e2e:members": "node scripts/member-e2e.mjs",
+    "e2e:knowledge": "node scripts/knowledge-e2e.mjs",
+    "smoke:package": "node scripts/package-smoke.mjs",
+    "video:runtime": "python scripts/package-video-runtime.py --output artifacts/bundled-video-runtime",
+    "test:desktop": "node --test scripts/test-desktop-updater.cjs scripts/test-video-desktop.cjs"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^25.0.1",
+    "sharp": "^0.35.3",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.signaldesk.desktop",
+    "productName": "迈医协同",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "SignalDesk-Setup-${version}.${ext}",
+      "extraResources": [
+        {
+          "from": "artifacts/bundled-video-runtime",
+          "to": "video-runtime",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "SignalDesk-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "迈医协同 ${version}",
+      "contents": [
+        {
+          "x": 140,
+          "y": 190,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 190,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "迈医协同",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://github.com/wuhang521/maiyiSingalDesk/releases/latest/download"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wuhang521/maiyiSingalDesk.git"
+  },
+  "homepage": "https://github.com/wuhang521/maiyiSingalDesk",
+  "bugs": {
+    "url": "https://github.com/wuhang521/maiyiSingalDesk/issues"
+  }
+}

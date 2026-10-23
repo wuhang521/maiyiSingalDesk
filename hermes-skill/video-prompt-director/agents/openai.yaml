@@ -1,0 +1,6 @@
+interface:
+  display_name: "视频提示词导演"
+  short_description: "把主题拆成旁白、分镜和 Seedance 视频提示词"
+  brand_color: "#168A6A"
+  default_prompt: "使用 $video-prompt-director 把这个主题拆成可逐镜编辑的抖音短视频方案。"
+
