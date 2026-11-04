@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld("signalDesk", {
   getVideoConnection: (request) => ipcRenderer.invoke("video:get-connection", request),
   downloadKnowledgeAsset: (asset) => ipcRenderer.invoke("knowledge:download", asset),
   knowledgeWatchStatus: () => ipcRenderer.invoke("knowledge:watch-status"),
-  knowledgeWatchStart: () => ipcRenderer.invoke("knowledge:watch-start"),
+  knowledgeWatchStart: (options) => ipcRenderer.invoke("knowledge:watch-start", options),
   knowledgeWatchStop: () => ipcRenderer.invoke("knowledge:watch-stop"),
   toggleTaskWidget: () => ipcRenderer.invoke("widget:toggle"),
   hideTaskWidget: () => ipcRenderer.invoke("widget:hide"),

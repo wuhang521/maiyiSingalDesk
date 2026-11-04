@@ -21,7 +21,7 @@ import { KnowledgeSemanticBatch } from "./KnowledgeSemanticBatch";
 import { KnowledgeCosts } from "./KnowledgeCosts";
 
 const blank = (): KnowledgeInput => ({ title: "", source_url: "", publisher: "", tags: [], content: "" });
-const accepted = ".jpg,.jpeg,.png,.txt,.md,.html,.htm,.pdf,.srt,.vtt,.mp4,.mov,.mkv,.webm,.mp3,.m4a,.wav,.aac,.ogg,.silk";
+const accepted = ".jpg,.jpeg,.png,.txt,.md,.html,.htm,.pdf,.srt,.vtt,.mp4,.mov,.mkv,.webm,.mp3,.m4a,.wav,.aac,.ogg,.silk,.slk,.aud,.amr";
 const waiting = new Set(["received", "extracting", "retry_wait"]);
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "操作失败，请稍后重试。";
 const draftValue = (value: KnowledgeInput) => JSON.stringify([value.title, value.source_url, value.publisher,
@@ -234,7 +234,7 @@ export function KnowledgeWorkspace({ settings, canManage = false }: { settings: 
     if (!detail) return;
     const epoch = sessionEpoch.current;
     void operate(async () => {
-      const result = await (detail.method === "volc_asr_draft" ? knowledgeApi.confirmAsr(settings, detail) : detail.method === "video_ocr_draft" ? knowledgeApi.confirmVideoOcr(settings, detail) : knowledgeApi.confirmOcr(settings, detail));
+      const result = await (["volc_asr_draft", "qwen_asr_draft"].includes(detail.method) ? knowledgeApi.confirmAsr(settings, detail) : detail.method === "video_ocr_draft" ? knowledgeApi.confirmVideoOcr(settings, detail) : knowledgeApi.confirmOcr(settings, detail));
       if (epoch !== sessionEpoch.current) return;
       setDetail(result); setNotice("已按你的核对确认入库，Hermes 可检索引用。"); refresh();
     });
@@ -257,7 +257,7 @@ export function KnowledgeWorkspace({ settings, canManage = false }: { settings: 
       <input ref={supplementInput} aria-label="补充知识文件" type="file" accept={accepted} hidden onChange={(event) => { const file = event.target.files?.[0]; if (file && detail) void upload(file, detail); event.target.value = ""; }} />
     </div>
     <div className="kb-auxiliary-tools">
-      {tab !== "teams" && <KnowledgeFolderWatch key={`folder-watch-${settings.backendUrl}-${settings.backendAuthToken}`} disabled={busy || !!form} onImport={() => fileInput.current?.click()} />}
+      {tab !== "teams" && <KnowledgeFolderWatch key={`folder-watch-${settings.backendUrl}-${settings.backendAuthToken}`} disabled={busy || !!form} onImport={() => fileInput.current?.click()} onSaved={refresh} />}
       {caps?.semantic_enabled && tab === "active" && !form && <KnowledgeSemanticBatch key={`semantic-batch-${settings.backendUrl}-${settings.backendAuthToken}`} settings={settings} items={items} disabled={busy} onBusy={setBusy} />}
       {caps?.costs_available && <KnowledgeCosts key={`costs-${settings.backendUrl}-${settings.backendAuthToken}`} settings={settings} canManage={canManage} disabled={busy} />}
       {caps?.notifications_available && <KnowledgeNotifications key={`notifications-${settings.backendUrl}-${settings.backendAuthToken}`} settings={settings} canManage={canManage} disabled={busy} />}
@@ -301,7 +301,7 @@ export function KnowledgeWorkspace({ settings, canManage = false }: { settings: 
       </div>
       {caps?.semantic_enabled !== undefined && <div className="kb-cloud-choice">
         <label><input type="checkbox" checked={semantic} disabled={busy || !caps.semantic_enabled} aria-describedby="kb-semantic-query-disclosure" onChange={(event) => { setSemantic(event.target.checked); setCloud(false); setAnswer(null); setError(""); }} />使用语义原文检索（可选）</label>
-        <p id="kb-semantic-query-disclosure">{caps.semantic_enabled ? "勾选后提交，把本次问题发送给火山文本向量模型，可能计费并占用一次提交额度。只检索本人已经主动建立索引的当前正文，在后台匹配，不发送整库，不生成结论；与 AI 综合二选一。" : "后台尚未启用语义检索或缺少专用向量模型。默认关键词检索不受影响。"}</p>
+        <p id="kb-semantic-query-disclosure">{caps.semantic_enabled ? `勾选后提交，把本次问题发送给${caps.semantic_provider || "后台配置的文本向量服务"}，可能计费并占用一次提交额度。只检索本人已主动建立索引的当前正文，不发送整库，不生成结论；与 AI 综合二选一。` : "后台尚未启用语义检索或缺少专用向量模型。默认关键词检索不受影响。"}</p>
       </div>}
       <form onSubmit={(e) => { e.preventDefault(); const epoch = sessionEpoch.current; void operate(async () => { setAnswer(null); const result = semantic ? await knowledgeApi.semanticSearch(settings, question.trim()) : await knowledgeApi.ask(settings, question.trim(), cloud); if (epoch === sessionEpoch.current) setAnswer(result); }); }}>
         <label>问题或关键词<input minLength={2} maxLength={500} required disabled={busy} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="例如：健康管理、内容运营" /></label>
@@ -335,7 +335,7 @@ export function KnowledgeWorkspace({ settings, canManage = false }: { settings: 
               <button className="kb-remove" disabled={busy || purging} onClick={() => { setPurging(true); setPurgeConfirmation(""); }}>永久删除…</button></> : <>
               <button className="secondary-button" disabled={busy} onClick={openEdit}>补充 / 修订正文</button>
               <button className="secondary-button" disabled={busy} onClick={() => supplementInput.current?.click()}>补充文件</button>
-              {!waiting.has(detail.status) && !/^(doubao_ocr|volc_asr|video_ocr)/.test(detail.method) && (!detail.assets.length || detail.assets.some((a) => !/\.(jpe?g|png)$/i.test(a.filename))) && <button className="secondary-button" disabled={busy || (!detail.assets.length && detail.kind !== "article")} onClick={() => void operate(async () => { await knowledgeApi.retry(settings, detail); setNotice("已重新加入识别队列。"); refresh(); })}>重试识别</button>}
+              {!waiting.has(detail.status) && !/^(doubao_ocr|volc_asr|qwen_asr|video_ocr)/.test(detail.method) && (!detail.assets.length || detail.assets.some((a) => !/\.(jpe?g|png)$/i.test(a.filename))) && <button className="secondary-button" disabled={busy || (!detail.assets.length && detail.kind !== "article")} onClick={() => void operate(async () => { await knowledgeApi.retry(settings, detail); setNotice("已重新加入识别队列。"); refresh(); })}>重试识别</button>}
               <button className="kb-remove" disabled={busy} onClick={() => { if (window.confirm(`将“${detail.title}”移入知识回收站？移除后不再参与检索，原始文件仍保留。`)) void operate(async () => { await knowledgeApi.remove(settings, detail); setNotice("已移入知识回收站，不再参与检索。"); setDetail(null); refresh(); }); }}>移入回收站</button>
             </>}
           </div>
@@ -377,12 +377,12 @@ export function KnowledgeWorkspace({ settings, canManage = false }: { settings: 
             });
           }} />
           {detail.status === "needs_review" && !detail.deleted_at && <p className="kb-ai-warning">请下载原件核对正文及定位。识别有误请先“补充 / 修订正文”；确认将由你把当前正文入库，不会再次调用模型。</p>}
-          {detail.content ? <section className="kb-body"><h3>{detail.status === "ready" ? "已提取正文" : detail.status === "needs_review" ? detail.method === "volc_asr_draft" ? "AI 转写正文 · 待核对（暂不参与检索）" : "AI 识别正文 · 待核对（暂不参与检索）" : `保留的旧正文（版本 ${detail.content_revision || "待核对"}，暂不参与检索）`}</h3><div className="kb-source-text">{detail.content}</div></section> : <div className="kb-missing"><h3>还没有可搜索的正文</h3><p>仅保存链接不会参与知识问答。可补充文章正文、SRT / VTT 字幕，或上传图片、PDF、视频 / 音频。</p><p>{caps?.asr_enabled ? "后台已启用本地语音识别。" : caps?.cloud_asr_enabled ? "音视频可在原件下方主动选择云端转写。" : "后台尚未启用语音识别；上传的视频会保留，请先补充字幕或正文。"} {caps?.ocr_enabled ? "图片 / 扫描 PDF 可在原始文件下方主动选择云端 OCR。" : "后台尚未启用图片 OCR。"}</p></div>}
+          {detail.content ? <section className="kb-body"><h3>{detail.status === "ready" ? "已提取正文" : detail.status === "needs_review" ? ["volc_asr_draft", "qwen_asr_draft"].includes(detail.method) ? "AI 转写正文 · 待核对（暂不参与检索）" : "AI 识别正文 · 待核对（暂不参与检索）" : `保留的旧正文（版本 ${detail.content_revision || "待核对"}，暂不参与检索）`}</h3><div className="kb-source-text">{detail.content}</div></section> : <div className="kb-missing"><h3>还没有可搜索的正文</h3><p>仅保存链接不会参与知识问答。可补充文章正文、SRT / VTT 字幕，或上传图片、PDF、视频 / 音频。</p><p>{caps?.asr_enabled ? "后台已启用本地语音识别。" : caps?.cloud_asr_enabled ? "音视频可在原件下方主动选择云端转写。" : "后台尚未启用语音识别；上传的视频会保留，请先补充字幕或正文。"} {caps?.ocr_enabled ? "图片 / 扫描 PDF 可在原始文件下方主动选择云端 OCR。" : "后台尚未启用图片 OCR。"}</p></div>}
           {caps?.media_merge_available && !detail.deleted_at && <KnowledgeMediaMerge key={`merge-${settings.backendUrl}-${settings.backendAuthToken}-${detail.id}-${detail.revision}`} settings={settings} item={detail} busy={busy} onMerge={(speech, frames) => {
             const epoch = sessionEpoch.current; void operate(async () => { const result = await knowledgeApi.mergeMedia(settings, detail, speech, frames); if (epoch === sessionEpoch.current) { setDetail(result); refresh(); } });
           }} onConfirm={() => { const epoch = sessionEpoch.current; void operate(async () => { const result = await knowledgeApi.confirmMedia(settings, detail); if (epoch === sessionEpoch.current) { setDetail(result); refresh(); } }); }} />}
           {!!detail.history.length && <KnowledgeHistory key={`${detail.id}-${detail.revision}`} settings={settings} item={detail} />}
-          {detail.status === "needs_review" && ["doubao_ocr_draft", "volc_asr_draft", "video_ocr_draft"].includes(detail.method) && !detail.deleted_at && <button className="primary-button kb-confirm-ocr" disabled={busy} onClick={confirmOcr}>已核对，入库</button>}
+          {detail.status === "needs_review" && ["doubao_ocr_draft", "volc_asr_draft", "qwen_asr_draft", "video_ocr_draft"].includes(detail.method) && !detail.deleted_at && <button className="primary-button kb-confirm-ocr" disabled={busy} onClick={confirmOcr}>已核对，入库</button>}
           {caps?.teams_available && <KnowledgeShare key={`share-${settings.backendUrl}-${settings.backendAuthToken}-${detail.id}-${detail.revision}`} settings={settings} item={detail} busy={busy} onShare={async (team) => {
             const epoch = sessionEpoch.current;
             await operate(async () => {

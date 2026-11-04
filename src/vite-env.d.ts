@@ -64,7 +64,7 @@ interface SignalDeskBridge {
   } | null>;
   downloadKnowledgeAsset?: (asset: { id: string; filename: string }) => Promise<boolean>;
   knowledgeWatchStatus?: () => Promise<{ running: boolean; folder: string; message: string; files: { name: string; size: number; updatedAt: number }[] }>;
-  knowledgeWatchStart?: () => Promise<{ running: boolean; folder: string; message: string; files: { name: string; size: number; updatedAt: number }[] }>;
+  knowledgeWatchStart?: (options?: { autoImport: boolean }) => Promise<{ running: boolean; folder: string; message: string; files: { name: string; size: number; updatedAt: number }[] }>;
   knowledgeWatchStop?: () => Promise<{ running: boolean; folder: string; message: string; files: { name: string; size: number; updatedAt: number }[] }>;
   toggleTaskWidget: () => Promise<{ visible: boolean; launchAtLogin: boolean }>;
   hideTaskWidget: () => Promise<boolean>;

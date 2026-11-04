@@ -12,7 +12,7 @@ from .knowledge_extract import Extraction, normalize_url, text_extraction
 from .knowledge_models import KnowledgeAsset, KnowledgeChunk, KnowledgeFileCleanup, KnowledgeItem, KnowledgeJob, KnowledgeRevision, KnowledgeOrganization, KnowledgeSemanticIndex, KnowledgeShare, KnowledgeMediaPart
 from .models import UserAccount, utcnow
 
-PAID_RECOGNITION_MODES = frozenset({"doubao_ocr", "volc_asr", "video_ocr"})
+PAID_RECOGNITION_MODES = frozenset({"doubao_ocr", "volc_asr", "qwen_asr", "video_ocr"})
 
 
 def new_id():

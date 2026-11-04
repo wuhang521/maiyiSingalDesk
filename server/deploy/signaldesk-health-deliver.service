@@ -1,0 +1,22 @@
+[Unit]
+Description=Deliver the frozen health snapshot without live collection
+After=network-online.target signaldesk-task-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Keep Restart unset: systemd 219 requires Restart=no for oneshot jobs.
+User=signaldesk-task
+Group=signaldesk-task
+WorkingDirectory=/opt/signaldesk-task
+EnvironmentFile=/opt/signaldesk-task/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/signaldesk-task/.venv/bin/python -m app.health_delivery --mode deliver --state-dir /var/lib/signaldesk-health --collector-root /opt/signaldesk --config /etc/signaldesk/health-delivery.env
+TimeoutStartSec=10min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWriteDirectories=/var/lib/signaldesk-health

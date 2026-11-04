@@ -1,4 +1,5 @@
 import type { AppSettings, FeedItem, SmartChannel, TrashEntry } from "../types";
+import { canonicalizeChannels, canonicalizeFeed, canonicalizeTrash } from "./channelIdentity";
 
 const KEYS = {
   channels: "signaldesk.channels.v1",
@@ -6,6 +7,7 @@ const KEYS = {
   settings: "signaldesk.settings.v1",
   trash: "signaldesk.trash.v1",
   deletedFeedIds: "signaldesk.deletedFeedIds.v1",
+  ntfyReceipts: "signaldesk.ntfy-receipts.v1",
 } as const;
 
 function readJson<T>(key: string, fallback: T): T {
@@ -22,17 +24,25 @@ function writeJson<T>(key: string, value: T): void {
 }
 
 export const storage = {
-  loadChannels(fallback: SmartChannel[]): SmartChannel[] {
-    return readJson(KEYS.channels, fallback);
+  loadNtfyReceipts(): string[] {
+    const value = readJson<unknown>(KEYS.ntfyReceipts, []);
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string").slice(-1000) : [];
+  },
+  saveNtfyReceipts(receipts: string[]): void {
+    try { writeJson(KEYS.ntfyReceipts, receipts.slice(-1000)); } catch { /* Session deduplication remains available if local storage is full. */ }
+  },
+  loadChannels(fallback: SmartChannel[], defaultServer = ""): SmartChannel[] {
+    const channels = readJson(KEYS.channels, fallback);
+    return canonicalizeChannels(channels, channels, defaultServer);
   },
   saveChannels(channels: SmartChannel[]): void {
-    writeJson(KEYS.channels, channels);
+    writeJson(KEYS.channels, canonicalizeChannels(channels));
   },
   loadFeed(fallback: FeedItem[]): FeedItem[] {
-    return readJson(KEYS.feed, fallback);
+    return canonicalizeFeed(readJson(KEYS.feed, fallback), readJson<SmartChannel[]>(KEYS.channels, []));
   },
   saveFeed(feed: FeedItem[]): void {
-    writeJson(KEYS.feed, feed.slice(0, 1000));
+    writeJson(KEYS.feed, canonicalizeFeed(feed.slice(0, 1000), readJson<SmartChannel[]>(KEYS.channels, [])));
   },
   loadTrash(): TrashEntry[] {
     const entries = readJson<TrashEntry[]>(KEYS.trash, []);
@@ -40,10 +50,10 @@ export const storage = {
     const migrated = readJson<string[]>(KEYS.deletedFeedIds, [])
       .filter((id) => !existingIds.has(id))
       .map((id) => ({ id, deletedAt: Date.now() }));
-    return [...entries, ...migrated];
+    return canonicalizeTrash([...entries, ...migrated], readJson<SmartChannel[]>(KEYS.channels, []));
   },
   saveTrash(entries: TrashEntry[]): void {
-    writeJson(KEYS.trash, entries);
+    writeJson(KEYS.trash, canonicalizeTrash(entries, readJson<SmartChannel[]>(KEYS.channels, [])));
     window.localStorage.removeItem(KEYS.deletedFeedIds);
   },
   loadSettings(fallback: AppSettings): AppSettings {

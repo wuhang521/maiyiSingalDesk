@@ -10,6 +10,15 @@ const settings = { ...defaultSettings, backendUrl: "http://127.0.0.1:19080", bac
 const item: KnowledgeDetail = { id: "preview-item", title: "演示健康管理资料", source_url: "https://weixin.qq.com/sph/preview-only", kind: "channels", publisher: "演示来源", tags: [], status: "needs_input", status_note: "链接已保存，请补充视频、音频或字幕。", revision: 1, content: "", summary: "", method: "", deleted_at: null, created_at: "2026-10-08T01:00:00", updated_at: "2026-10-08T01:00:00", assets: [], history: [] };
 
 describe("个人知识库", () => {
+  it("千问转写待核对时必须提供本人确认入库入口", async () => {
+    const draft = { ...item, status: "needs_review", method: "qwen_asr_draft", content: "千问合成转写正文" };
+    vi.mocked(knowledgeApi.items).mockResolvedValue({ items: [draft], total: 1 });
+    vi.mocked(knowledgeApi.detail).mockResolvedValue(draft);
+    render(<KnowledgeWorkspace settings={settings} />);
+    expect(await screen.findByRole("heading", { name: "AI 转写正文 · 待核对（暂不参与检索）" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "已核对，入库" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "重试识别" })).not.toBeInTheDocument();
+  });
   it("详情先结束识别时同步列表状态，不并列显示等待与失败", async () => {
     const queued = { ...item, revision: 2, status: "received", summary: "等待 OCR" };
     const failed = { ...queued, status: "needs_input", summary: "云端 OCR 请求失败，未自动重试", status_note: "云端 OCR 请求失败，未自动重试", updated_at: "2026-10-08T01:00:01" };

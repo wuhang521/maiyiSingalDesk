@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { SmartChannel, SubscriptionStatus } from "../types";
+import { usesHealthRelay } from "../lib/ntfy";
 
 interface ChannelsViewProps {
   channels: SmartChannel[];
@@ -50,7 +51,7 @@ export function ChannelsView({
           <strong>{connectedCount}</strong>
         </div>
         <div className="metric-item wide">
-          <span>下次统一推送</span>
+          <span>频道推送安排</span>
           <strong>{nextSchedule(channels)}</strong>
         </div>
       </div>
@@ -86,7 +87,7 @@ export function ChannelsView({
                   </span>
                   <div>
                     <strong>{channel.name}</strong>
-                    <span>{channel.description}</span>
+                    <span>{usesHealthRelay(channel) ? "服务器接收推送 · 历史文章从服务器同步" : channel.managed ? `服务器受管 · ${channel.description}` : channel.description}</span>
                   </div>
                 </div>
                 <div>
@@ -97,7 +98,7 @@ export function ChannelsView({
                 </div>
                 <div className="table-value">
                   <Clock3 size={14} />
-                  {channel.schedule}
+                  {channel.managed ? `每天北京时间 ${channel.schedule}（服务器推送）` : channel.schedule}
                 </div>
                 <div className="table-value">{channel.maxItems} 条</div>
                 <div className="topic-value" title={channel.topic || "尚未连接 topic"}>
@@ -107,9 +108,9 @@ export function ChannelsView({
                   <button
                     className="icon-button subtle"
                     type="button"
-                    title="发送测试"
-                    aria-label="发送测试"
-                    disabled={!channel.topic}
+                    title={usesHealthRelay(channel) ? "检查接收" : "发送测试"}
+                    aria-label={usesHealthRelay(channel) ? "检查接收" : "发送测试"}
+                    disabled={!usesHealthRelay(channel) && !channel.topic}
                     onClick={() => onTest(channel)}
                   >
                     <Send size={15} />
@@ -117,8 +118,8 @@ export function ChannelsView({
                   <button
                     className="icon-button subtle"
                     type="button"
-                    title="编辑"
-                    aria-label="编辑"
+                    title={channel.managed ? "查看受管配置" : "编辑"}
+                    aria-label={channel.managed ? "查看受管配置" : "编辑"}
                     onClick={() => onEdit(channel)}
                   >
                     <Edit3 size={15} />
@@ -126,8 +127,9 @@ export function ChannelsView({
                   <button
                     className="icon-button subtle"
                     type="button"
-                    title={channel.state === "active" ? "暂停" : "启用"}
+                    title={channel.managed ? "服务器受管，不能在本机暂停" : channel.state === "active" ? "暂停" : "启用"}
                     aria-label={channel.state === "active" ? "暂停" : "启用"}
+                    disabled={channel.managed}
                     onClick={() => onToggle(channel.id)}
                   >
                     {channel.state === "active" ? <Pause size={15} /> : <Play size={15} />}
@@ -135,8 +137,9 @@ export function ChannelsView({
                   <button
                     className="icon-button subtle danger"
                     type="button"
-                    title="删除"
                     aria-label="删除"
+                    disabled={channel.managed}
+                    title={channel.managed ? "服务器受管，不能在本机删除" : "删除"}
                     onClick={() => onDelete(channel.id)}
                   >
                     <Trash2 size={15} />
@@ -162,6 +165,8 @@ export function ChannelsView({
 }
 
 function nextSchedule(channels: SmartChannel[]): string {
+  const managed = channels.find((channel) => channel.managed && channel.state === "active");
+  if (managed) return `每天北京时间 ${managed.schedule}（服务器）`;
   const times = channels
     .filter((channel) => channel.state === "active")
     .map((channel) => channel.schedule)

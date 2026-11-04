@@ -1,0 +1,10 @@
+name: shared-task-router
+version: 1.0.0
+description: "Deterministic pre-LLM router for SignalDesk shared tasks."
+author: SignalDesk
+kind: standalone
+provides_hooks:
+  - pre_gateway_dispatch
+requires_env:
+  - TASK_API_BASE_URL
+  - TASK_API_KEY

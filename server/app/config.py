@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     knowledge_asr_enabled: bool = False
     knowledge_asr_command: str = ""
     knowledge_cloud_asr_enabled: bool = False
+    knowledge_cloud_asr_provider: str = "volc"
+    knowledge_cloud_asr_model: str = "qwen3-asr-flash"
+    knowledge_qwen_api_key: str = Field(default="", validation_alias=AliasChoices("TASK_KNOWLEDGE_QWEN_API_KEY", "DASHSCOPE_API_KEY"))
+    knowledge_qwen_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     knowledge_cloud_asr_api_key: str = ""
     knowledge_cloud_asr_app_id: str = ""
     knowledge_cloud_asr_access_key: str = ""
@@ -70,6 +74,7 @@ class Settings(BaseSettings):
     knowledge_semantic_enabled: bool = False
     knowledge_semantic_max_chunks: int = Field(default=2000, ge=500, le=10000)
     knowledge_embedding_api_key: str = ""
+    knowledge_embedding_provider: str = "ark"
     knowledge_embedding_model: str = ""
     knowledge_dispatch_enabled: bool = False
     knowledge_notification_webhook_base: str = ""

@@ -19,6 +19,7 @@ from .database import get_db
 from .knowledge_extract import Extraction, IMAGE_EXTENSIONS, MEDIA_EXTENSIONS, TEXT_EXTENSIONS, text_extraction
 from .knowledge_ocr import OCR_EXTENSIONS, configuration as ocr_configuration
 from .knowledge_asr import configuration as cloud_asr_configuration, silk_configuration
+from .knowledge_silk import SILK_EXTENSIONS, is_silk
 from .knowledge_models import KnowledgeAsset, KnowledgeChunk, KnowledgeItem, KnowledgeJob, KnowledgeRevision, KnowledgeOrganization, KnowledgeSemanticIndex
 from .knowledge_service import (apply_extraction, ask, capacity, check_revision, create_item, enqueue,
                                 find_evidence, item_read, new_id, owned_item, purge_item)
@@ -149,12 +150,12 @@ def storage_root():
 def capabilities(user: UserAccount = Depends(require_user)):
     s = get_settings()
     return dict(asr_enabled=bool(s.knowledge_asr_enabled and s.knowledge_asr_command), ocr_enabled=ocr_configuration(),
-                cloud_asr_enabled=cloud_asr_configuration(), cloud_asr_provider="豆包语音 / 火山引擎",
+                cloud_asr_enabled=cloud_asr_configuration(), cloud_asr_provider="千问 / 阿里云百炼" if s.knowledge_cloud_asr_provider == "qwen" else "豆包语音 / 火山引擎",
                 cloud_asr_max_minutes=s.knowledge_cloud_asr_max_minutes,
                 organization_enabled=organization_configuration(), organization_provider=cloud_configuration()[1],
                 video_ocr_enabled=video_ocr_configuration(), video_ocr_max_frames=s.knowledge_video_ocr_max_frames,
                 usage_available=True,
-                semantic_enabled=semantic_configuration(),
+                semantic_enabled=semantic_configuration(), semantic_provider="千问 / 阿里云百炼" if s.knowledge_embedding_provider == "qwen" else "火山方舟",
                 teams_available=True, notifications_available=True, media_merge_available=True,
                 semantic_max_chunks=s.knowledge_semantic_max_chunks, costs_available=True,
                 silk_available=silk_configuration(),
@@ -378,15 +379,19 @@ def request_asr(item_id: str, asset_id: str, payload: AsrRequest,
         raise HTTPException(422, "请选择音频或视频原件；分享链接不能直接转写。")
     if not cloud_asr_configuration():
         raise HTTPException(503, "后台尚未配置独立云端语音识别权限或转换工具；原件已保留。")
-    if Path(asset.filename).suffix.lower() == ".silk":
+    source_path = (storage_root() / asset.storage_name).resolve()
+    if source_path.parent != storage_root(): raise HTTPException(404, "原始文件不可访问")
+    if Path(asset.filename).suffix.lower() in SILK_EXTENSIONS or is_silk(source_path):
         if not silk_configuration(): raise HTTPException(503, "原生微信语音已保存，但本地 SILK 解码器未就绪；未预留费用、未提交云模型")
     if db.scalar(select(KnowledgeJob.id).where(KnowledgeJob.item_id == item.id,
             KnowledgeJob.mode.in_(PAID_RECOGNITION_MODES), KnowledgeJob.state.in_(["queued", "running", "retry_wait"]))):
         raise HTTPException(409, "已有付费识别在处理，请勿重复提交。")
     item.revision += 1
-    job = enqueue(db, item, asset.id, mode="volc_asr")
-    reserve_paid(db, user.id, job.id, "volc_asr")
-    item.status_note = "已同意本地提取音轨并发送到豆包语音，等待转写；不自动重复付费提交。"
+    mode = "qwen_asr" if get_settings().knowledge_cloud_asr_provider == "qwen" else "volc_asr"
+    job = enqueue(db, item, asset.id, mode=mode)
+    reserve_paid(db, user.id, job.id, mode)
+    provider = "千问 / 阿里云百炼" if mode == "qwen_asr" else "豆包语音"
+    item.status_note = f"已同意本地提取音轨并发送到{provider}，等待转写；不自动重复付费提交。"
     db.commit()
     return item_read(item, db, True)
 
@@ -490,6 +495,9 @@ def confirm_recognition(item_id, payload, user, db, draft_method, reviewed_metho
 
 @router.post("/items/{item_id}/asr/confirm")
 def confirm_asr(item_id: str, payload: OcrConfirm, user: UserAccount = Depends(require_user), db: Session = Depends(get_db)):
+    item = owned_item(db, user.id, item_id)
+    if item.method == "qwen_asr_draft":
+        return confirm_recognition(item_id, payload, user, db, "qwen_asr_draft", "qwen_asr_reviewed", "千问音频转写")
     return confirm_recognition(item_id, payload, user, db, "volc_asr_draft", "volc_asr_reviewed", "音频转写")
 
 

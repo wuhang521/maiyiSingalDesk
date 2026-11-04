@@ -13,13 +13,16 @@ import { TaskWorkspace } from "./components/TaskWorkspace";
 import { defaultSettings, demoChannels, demoFeed } from "./data/demo";
 import {
   channelConnection,
+  channelHistoryWindow,
   mapNtfyMessageItems,
   mergeFeed,
   normalizeFeedItems,
+  usesHealthRelay,
 } from "./lib/ntfy";
 import { articleApi, type ArticleStateUpdate } from "./lib/articleApi";
 import { authApi } from "./lib/authApi";
 import { storage } from "./lib/storage";
+import { canonicalChannelId, canonicalizeChannels, canonicalizeFeed, canonicalizeTrash, mergeChannelSnapshot } from "./lib/channelIdentity";
 import { purgeExpiredTrash } from "./lib/trash";
 import type {
   AppSettings,
@@ -43,9 +46,20 @@ interface ActiveSubscription {
 
 type ArticleListResult = Awaited<ReturnType<typeof articleApi.listArticles>>;
 
+function remapArticleIds(items: FeedItem[], idMap?: Record<string, string>): FeedItem[] {
+  if (!idMap) return items;
+  const byId = new Map<string, FeedItem>();
+  for (const item of items) {
+    const next = { ...item, id: idMap[item.id] || item.id };
+    const previous = byId.get(next.id);
+    byId.set(next.id, previous ? mergeFeed([previous], [next])[0] : next);
+  }
+  return Array.from(byId.values());
+}
+
 export default function App() {
   const [channels, setChannels] = useState<SmartChannel[]>(() =>
-    storage.loadChannels(demoChannels),
+    storage.loadChannels(demoChannels, storage.loadSettings(defaultSettings).defaultServer),
   );
   const [trash, setTrash] = useState<TrashEntry[]>(() => {
     const storedItems = normalizeFeedItems(storage.loadFeed(demoFeed));
@@ -87,21 +101,28 @@ export default function App() {
   const [subscriptionDefaults, setSubscriptionDefaults] = useState(() => ({
     defaultServer: settings.defaultServer,
     globalAuthToken: settings.globalAuthToken,
+    backendUrl: settings.backendUrl,
+    backendAuthToken: settings.backendAuthToken,
   }));
   const subscriptionsRef = useRef<Map<string, ActiveSubscription>>(new Map());
+  const receivedMessagesRef = useRef(new Set<string>());
+  const pendingMessagesRef = useRef(new Set<string>());
   const feedRef = useRef(feed);
   const trashRef = useRef(trash);
   const channelsRef = useRef(channels);
+  const settingsRef = useRef(settings);
   const backendStateErrorRef = useRef(false);
   feedRef.current = feed;
   trashRef.current = trash;
   channelsRef.current = channels;
+  settingsRef.current = settings;
   const trashIds = useMemo(() => trash.map((entry) => entry.id), [trash]);
 
   useEffect(() => storage.saveChannels(channels), [channels]);
   useEffect(() => storage.saveFeed(feed), [feed]);
   useEffect(() => storage.saveTrash(trash), [trash]);
   useEffect(() => storage.saveSettings(settings), [settings]);
+  useEffect(() => { receivedMessagesRef.current = new Set(storage.loadNtfyReceipts()); }, []);
   useEffect(() => {
     const bridge = window.signalDesk;
     if (!bridge?.loadAuthSession) return;
@@ -145,13 +166,17 @@ export default function App() {
   }, []);
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      setSubscriptionDefaults({
+      setSubscriptionDefaults((current) => ({
+        ...current,
         defaultServer: settings.defaultServer,
         globalAuthToken: settings.globalAuthToken,
-      });
+      }));
     }, 300);
     return () => window.clearTimeout(timeout);
   }, [settings.defaultServer, settings.globalAuthToken]);
+  useEffect(() => {
+    setSubscriptionDefaults((current) => ({ ...current, backendUrl: settings.backendUrl, backendAuthToken: settings.backendAuthToken }));
+  }, [settings.backendUrl, settings.backendAuthToken]);
 
   const notify = useCallback((toast: Omit<ToastMessage, "id">) => {
     const id = crypto.randomUUID();
@@ -199,47 +224,50 @@ export default function App() {
     articleResult: ArticleListResult,
     remoteChannels: SmartChannel[],
   ) => {
-    const serverActive = articleResult.items
+    const previousChannels = channelsRef.current;
+    const mergedChannels = mergeChannelSnapshot(previousChannels, remoteChannels);
+    const aliases = [...previousChannels, ...mergedChannels, ...remoteChannels];
+    const remoteIds = new Set(remoteChannels.map((channel) => canonicalChannelId(channel.id, aliases)));
+    const localOnlyIds = new Set(mergedChannels.filter((channel) => !remoteIds.has(channel.id)).map((channel) => channel.id));
+    const serverActive = canonicalizeFeed(articleResult.items
       .filter((item) => item.deletedAt === null)
-      .map(({ deletedAt: _deletedAt, purged: _purged, ...item }) => item);
-    const serverTrash = articleResult.items
+      .map(({ deletedAt: _deletedAt, purged: _purged, ...item }) => item), aliases);
+    const serverTrash = canonicalizeTrash(articleResult.items
       .filter((item) => item.deletedAt !== null)
       .map(({ deletedAt, purged: _purged, ...item }) => ({
         id: item.id,
         item,
         deletedAt: deletedAt!,
-      }));
+      })), aliases);
     const serverTrashIds = serverTrash.map((entry) => entry.id);
 
-    setFeed((current) =>
-      mergeFeed(
-        current.filter((item) => item.id.startsWith("demo-message-")),
-        serverActive,
+    setFeed((current) => {
+      const normalized = canonicalizeFeed(current, aliases);
+      const byId = new Map(normalized.map((item) => [item.id, item]));
+      const incoming = serverActive.map((item) => {
+        const previous = byId.get(item.id);
+        return previous && (previous.stateUpdatedAt || 0) > (item.stateUpdatedAt || 0)
+          ? { ...item, read: previous.read, saved: previous.saved, feedback: previous.feedback, stateUpdatedAt: previous.stateUpdatedAt }
+          : item;
+      });
+      return mergeFeed(
+        normalized.filter((item) => item.id.startsWith("demo-message-") || localOnlyIds.has(item.channelId)),
+        incoming,
         serverTrashIds,
-      ),
-    );
+      );
+    });
     setTrash((current) => [
       ...serverTrash,
-      ...current.filter(
+      ...canonicalizeTrash(current, aliases).filter(
         (entry) =>
-          (entry.purged || entry.id.startsWith("demo-message-")) &&
+          (entry.purged || entry.id.startsWith("demo-message-") || (entry.item && localOnlyIds.has(entry.item.channelId))) &&
           !serverTrashIds.includes(entry.id),
       ),
     ]);
-    setChannels((current) => {
-      const localById = new Map(current.map((channel) => [channel.id, channel]));
-      const merged = remoteChannels.map((channel) => {
-        const local = localById.get(channel.id);
-        localById.delete(channel.id);
-        return {
-          ...channel,
-          authToken: local?.authToken || "",
-          lastSyncAt: local?.lastSyncAt,
-          isDemo: local?.isDemo,
-        };
-      });
-      return [...merged, ...localById.values()];
-    });
+    channelsRef.current = mergedChannels;
+    setChannels(mergedChannels);
+    setSelectedChannelId((id) => id ? canonicalChannelId(id, aliases) : null);
+    setEditingChannel((channel) => channel ? mergedChannels.find((item) => item.id === canonicalChannelId(channel.id, aliases)) || null : null);
   }, []);
 
   useEffect(() => {
@@ -254,7 +282,7 @@ export default function App() {
         await Promise.all(
           localChannels.map((channel) => articleApi.upsertChannel(settings, channel)),
         );
-        await articleApi.syncArticles(settings, feedRef.current, trashRef.current);
+        await articleApi.syncArticles(settings, feedRef.current, trashRef.current, channelsRef.current);
         const [articleResult, remoteChannels] = await Promise.all([
           articleApi.listArticles(settings, "all"),
           articleApi.listChannels(settings),
@@ -365,8 +393,8 @@ export default function App() {
 
   const syncChannels = useCallback(async () => {
     const bridge = window.signalDesk;
-    const connectedChannels = channels.filter(
-      (channel) => channel.state === "active" && channel.topic,
+    const connectedChannels = canonicalizeChannels(channels).filter(
+      (channel) => channel.state === "active" && Boolean(channelConnection(channel, settings)?.topic),
     );
     if (!bridge) {
       notify({
@@ -399,26 +427,37 @@ export default function App() {
       const results = await Promise.allSettled(
         connectedChannels.map(async (channel) => {
           const connection = channelConnection(channel, settings);
+          if (!connection) throw new Error("请先登录本人账号以接收健康情报。");
           const messages = await bridge.pollMessages({
             ...connection,
-            since: settings.historyWindow,
+            since: channelHistoryWindow(channel, settings.historyWindow),
           });
-          return {
-            channel,
-            items: messages.flatMap((message) => mapNtfyMessageItems(channel, message)),
-          };
+          let items = messages.flatMap((message) => mapNtfyMessageItems(channel, message));
+          let idMap: Record<string, string> | undefined;
+          const resolved = channel.id === "health" && channel.managed && backendConfigured;
+          if (resolved && items.length > 0) {
+            const saved = await articleApi.batchArticles(settings, items, channels, true);
+            idMap = saved.idMap;
+            items = remapArticleIds(items, idMap);
+          }
+          return { channel, connection, items, idMap, resolved };
         }),
       );
+
+      if (settingsRef.current.backendUrl !== settings.backendUrl || settingsRef.current.backendAuthToken !== settings.backendAuthToken) return;
 
       let received = 0;
       const receivedItems: FeedItem[] = [];
       results.forEach((result, index) => {
         const channel = connectedChannels[index];
         if (result.status === "fulfilled") {
+          const { idMap, resolved, connection } = result.value;
+          if (resolved && JSON.stringify(channelConnection(channelsRef.current.find(item => item.id === channel.id) || channel, settingsRef.current)) !== JSON.stringify(connection)) return;
           received += result.value.items.length;
-          receivedItems.push(...result.value.items);
+          if (!resolved) receivedItems.push(...result.value.items);
+          if (idMap) setTrash(current => current.map(entry => ({ ...entry, id: idMap[entry.id] || entry.id, item: entry.item ? { ...entry.item, id: idMap[entry.item.id] || entry.item.id } : undefined })));
           hydrateTrashItems(result.value.items);
-          setFeed((current) => mergeFeed(current, result.value.items, trashIds));
+          setFeed((current) => mergeFeed(remapArticleIds(current, idMap), result.value.items, trashRef.current.map(entry => idMap?.[entry.id] || entry.id)));
           setChannels((current) =>
             current.map((item) =>
               item.id === result.value.channel.id
@@ -441,7 +480,7 @@ export default function App() {
       let backendError: unknown;
       if (backendConfigured && receivedItems.length > 0) {
         try {
-          await articleApi.batchArticles(settings, receivedItems);
+          await articleApi.batchArticles(settings, receivedItems, channels);
         } catch (error) {
           backendError = error;
         }
@@ -453,6 +492,7 @@ export default function App() {
             articleApi.listArticles(settings, "all"),
             articleApi.listChannels(settings),
           ]);
+          if (settingsRef.current.backendUrl !== settings.backendUrl || settingsRef.current.backendAuthToken !== settings.backendAuthToken) return;
           applyBackendSnapshot(articleResult, remoteChannels);
           backendStateErrorRef.current = false;
         } catch (error) {
@@ -517,16 +557,21 @@ export default function App() {
 
     return bridge.onMessage((event) => {
       if (event.type === "status" && event.subscriptionId) {
+        const subscriptionId = canonicalChannelId(event.subscriptionId, channels);
         setStatuses((current) => ({
           ...current,
-          [event.subscriptionId!]: {
-            status: event.status === "reconnecting" ? "reconnecting" : "error",
+          [subscriptionId]: {
+            status: event.status === "connected" || event.status === "reconnecting" ? event.status : "error",
             message: event.error,
           },
         }));
         return;
       }
       if (event.type === "notification-click" && event.messageId) {
+        if (event.messageId === "health:status") {
+          if (!mayChangeView("inbox")) return;
+          setSelectedChannelId("health"); setSelectedItemId(null); setActiveView("inbox"); return;
+        }
         if (event.messageId === "knowledge:inbox") {
           if (!mayChangeView("knowledge")) return;
           setActiveView("knowledge"); setSelectedChannelId(null); return;
@@ -537,36 +582,83 @@ export default function App() {
         return;
       }
       if (event.type !== "message" || !event.subscriptionId || !event.payload) return;
-      const channel = channels.find((item) => item.id === event.subscriptionId);
+      const subscriptionId = canonicalChannelId(event.subscriptionId, channels);
+      const channel = channels.find((item) => item.id === subscriptionId);
       if (!channel) return;
+      const connection = channelConnection(channel, settings);
+      if (!connection?.topic || event.payload.topic !== connection.topic) return;
+      // ntfy may replay a message after reconnect, or a retired alias stream may
+      // finish after the canonical subscription starts. Consume each event once.
+      const receipt = JSON.stringify([subscriptionId, connection.server.replace(/\/+$/, ""), connection.topic, event.payload.id]);
+      const messageIdentity = subscriptionId === "health" ? JSON.stringify(["health-message", event.payload.id]) : receipt;
+      if (receivedMessagesRef.current.has(receipt) || receivedMessagesRef.current.has(messageIdentity)) return;
+      const remember = () => {
+        receivedMessagesRef.current.add(receipt);
+        receivedMessagesRef.current.add(messageIdentity);
+        while (receivedMessagesRef.current.size > 1000) receivedMessagesRef.current.delete(receivedMessagesRef.current.values().next().value!);
+        storage.saveNtfyReceipts(Array.from(receivedMessagesRef.current));
+      };
+      if (channel.id === "health" && event.payload.tags?.includes("health_status")) {
+        remember();
+        if (settings.notifications) {
+          const title = "健康情报推送状态";
+          const body = plainNotification(event.payload.message || "服务器正在准备今天的健康情报，完成后会继续推送。");
+          notify({ title, message: body, tone: "info" });
+          bridge.showNotification({ title, body, messageId: "health:status", silent: !settings.notificationSound });
+        }
+        return;
+      }
       const incomingItems = mapNtfyMessageItems(channel, event.payload);
-      if (articleApi.contentConfigured(settings)) {
-        articleApi.batchArticles(settings, incomingItems).catch(() => undefined);
+      const commit = (received: FeedItem[], idMap?: Record<string, string>) => {
+        if (receivedMessagesRef.current.has(receipt) || receivedMessagesRef.current.has(messageIdentity)) return;
+        remember();
+        const excluded = trashRef.current.map(entry => idMap?.[entry.id] || entry.id);
+        if (idMap) setTrash(current => current.map(entry => ({ ...entry, id: idMap[entry.id] || entry.id, item: entry.item ? { ...entry.item, id: idMap[entry.item.id] || entry.item.id } : undefined })));
+        hydrateTrashItems(received);
+        const items = received.filter(item => !excluded.includes(item.id));
+        if (items.length === 0) return;
+        setFeed(current => mergeFeed(remapArticleIds(current, idMap), items, excluded));
+        if (settings.notifications) {
+          const notificationItem = items[0];
+          bridge.showNotification({
+            title: items.length === 1 ? notificationItem.title : `${channel.name} · ${items.length} 条新情报`,
+            body: items.length === 1 ? plainNotification(notificationItem.body) : items.map(item => item.title).join("、"),
+            messageId: notificationItem.id,
+            silent: !settings.notificationSound,
+          });
+        }
+      };
+      if (channel.id === "health" && channel.managed && articleApi.contentConfigured(settings)) {
+        const signature = JSON.stringify(connection);
+        const pending = receipt + signature;
+        if (pendingMessagesRef.current.has(pending)) return;
+        pendingMessagesRef.current.add(pending);
+        const current = () => {
+          const latest = channelsRef.current.find(item => item.id === channel.id);
+          return latest?.state === "active" && settingsRef.current.backendUrl === settings.backendUrl && settingsRef.current.backendAuthToken === settings.backendAuthToken && JSON.stringify(channelConnection(latest, settingsRef.current)) === signature;
+        };
+        void articleApi.batchArticles(settings, incomingItems, channels, true).then(result => {
+          if (!current()) return;
+          commit(remapArticleIds(incomingItems, result.idMap), result.idMap);
+        }).catch(error => {
+          if (!current()) return;
+          notify({ title: "文章暂未同步", message: `${errorMessage(error)}；消息保留在本机，请稍后点击同步。`, tone: "error" });
+          commit(incomingItems);
+        }).finally(() => pendingMessagesRef.current.delete(pending));
+        return;
       }
-      hydrateTrashItems(incomingItems);
-      const items = incomingItems.filter((item) => !trashIds.includes(item.id));
-      if (items.length === 0) return;
-      setFeed((current) => mergeFeed(current, items, trashIds));
-      if (settings.notifications) {
-        const notificationItem = items[0];
-        bridge.showNotification({
-          title: items.length === 1 ? notificationItem.title : `${channel.name} · ${items.length} 条新情报`,
-          body:
-            items.length === 1
-              ? plainNotification(notificationItem.body)
-              : items.map((item) => item.title).join("、"),
-          messageId: notificationItem.id,
-          silent: !settings.notificationSound,
-        });
-      }
+      if (articleApi.contentConfigured(settings)) articleApi.batchArticles(settings, incomingItems, channels).catch(() => undefined);
+      commit(incomingItems);
     });
   }, [
     channels,
     trashIds,
     settings.backendUrl,
     settings.backendAuthToken,
+    settings.defaultServer,
     settings.notifications,
     settings.notificationSound,
+    notify,
     hydrateTrashItems,
     mayChangeView,
   ]);
@@ -576,17 +668,18 @@ export default function App() {
     if (!bridge) return;
 
     const desired = new Map(
-      channels
-        .filter((channel) => channel.state === "active" && channel.topic)
-        .map((channel) => {
+      canonicalizeChannels(channels)
+        .filter((channel) => channel.state === "active")
+        .flatMap((channel) => {
           const connection = channelConnection(channel, subscriptionDefaults);
-          return [
+          if (!connection?.topic) return [];
+          return [[
             channel.id,
             {
               config: { ...connection, subscriptionId: channel.id },
               signature: JSON.stringify(connection),
             },
-          ] as const;
+          ] as const];
         }),
     );
 
@@ -621,13 +714,6 @@ export default function App() {
         .then(() => {
           if (subscriptionsRef.current.get(subscriptionId) !== record) return undefined;
           return bridge.subscribe(next.config);
-        })
-        .then((result) => {
-          if (!result || subscriptionsRef.current.get(subscriptionId) !== record) return;
-          setStatuses((current) => ({
-            ...current,
-            [subscriptionId]: { status: "connected" },
-          }));
         })
         .catch((error) => {
           if (subscriptionsRef.current.get(subscriptionId) !== record) return;
@@ -807,6 +893,7 @@ export default function App() {
   }
 
   function saveChannel(channel: SmartChannel) {
+    channel = canonicalizeChannels([channel], channels)[0];
     const exists = channels.some((item) => item.id === channel.id);
     setChannels((current) =>
       exists ? current.map((item) => (item.id === channel.id ? channel : item)) : [channel, ...current],
@@ -815,10 +902,11 @@ export default function App() {
     setEditingChannel(null);
     notify({
       title: exists ? "频道已更新" : "频道已创建",
-      message: channel.topic ? "ntfy 通道将在后台连接。" : "配置 topic 后即可接收实时消息。",
+      message: channel.managed ? "本机访问令牌已保存；每日北京时间推送由服务器管理。" : channel.topic ? "ntfy 通道将在后台连接。" : "配置 topic 后即可接收实时消息。",
       tone: "success",
     });
     if (!articleApi.contentConfigured(settings)) return;
+    if (channel.managed) return;
     articleApi.upsertChannel(settings, channel).catch((error) => {
       notify({ title: "服务器同步失败", message: errorMessage(error), tone: "error" });
     });
@@ -826,7 +914,7 @@ export default function App() {
 
   function toggleChannel(channelId: string) {
     const channel = channels.find((item) => item.id === channelId);
-    if (!channel) return;
+    if (!channel || channel.managed) return;
     const updated: SmartChannel = {
       ...channel,
       state: channel.state === "active" ? "paused" : channel.topic ? "active" : "draft",
@@ -844,10 +932,20 @@ export default function App() {
 
   async function testChannel(channel: SmartChannel) {
     const bridge = window.signalDesk;
-    if (!bridge || !channel.topic) return;
+    if (!bridge) return;
+    const connection = channelConnection(channel, settings);
+    if (!connection?.topic) {
+      if (usesHealthRelay(channel)) notify({ title: "请先登录", message: "登录本人账号后可检查健康情报接收。", tone: "info" });
+      return;
+    }
     try {
+      if (usesHealthRelay(channel)) {
+        await bridge.pollMessages({ ...connection, since: "10m" });
+        notify({ title: "接收链路正常", message: "健康情报由服务器准备并推送，历史文章从服务器同步。", tone: "success" });
+        return;
+      }
       await bridge.publishMessage({
-        ...channelConnection(channel, settings),
+        ...connection,
         title: `迈医协同 · ${channel.name}`,
         message: "频道连接成功。这是一条来自迈医协同桌面端的测试消息。",
         priority: 3,
@@ -855,7 +953,7 @@ export default function App() {
       });
       notify({ title: "测试消息已发送", message: channel.topic, tone: "success" });
     } catch (error) {
-      notify({ title: "发送失败", message: errorMessage(error), tone: "error" });
+      notify({ title: usesHealthRelay(channel) ? "接收检查失败" : "发送失败", message: errorMessage(error), tone: "error" });
     }
   }
 
@@ -919,8 +1017,8 @@ export default function App() {
   function resetLocalData() {
     if (!window.confirm("确定清除所有本地频道、消息和设置吗？")) return;
     storage.clearAll();
-    setChannels(demoChannels);
-    setFeed(demoFeed);
+    setChannels(canonicalizeChannels(demoChannels));
+    setFeed(canonicalizeFeed(demoFeed));
     setTrash([]);
     setSettings({
       ...defaultSettings,
@@ -969,7 +1067,7 @@ export default function App() {
         }}
         onChannelSelect={(channelId) => {
           if (!mayChangeView("inbox")) return;
-          setSelectedChannelId(channelId);
+          setSelectedChannelId(canonicalChannelId(channelId, channels));
           setActiveView("inbox");
           setFeedFilter("all");
         }}
@@ -1017,7 +1115,7 @@ export default function App() {
               onToggle={toggleChannel}
               onDelete={(channelId) => {
                 const channel = channels.find((item) => item.id === channelId);
-                if (!channel || !window.confirm(`删除频道“${channel.name}”及其本地消息吗？`)) return;
+                if (!channel || channel.managed || !window.confirm(`删除频道“${channel.name}”及其本地消息吗？`)) return;
                 setChannels((current) => current.filter((item) => item.id !== channelId));
                 setFeed((current) => current.filter((item) => item.channelId !== channelId));
                 if (articleApi.contentConfigured(settings)) {

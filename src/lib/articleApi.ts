@@ -5,6 +5,7 @@ import type {
   SmartChannel,
   TrashEntry,
 } from "../types";
+import { canonicalChannelId } from "./channelIdentity";
 
 export interface ServerArticle extends FeedItem {
   deletedAt: number | null;
@@ -15,6 +16,11 @@ export interface ServerArticle extends FeedItem {
 interface ArticleListResponse {
   items: ServerArticle[];
   total: number;
+}
+
+export interface ArticleBatchResult {
+  accepted: number;
+  idMap?: Record<string, string>;
 }
 
 export interface ArticleStateUpdate {
@@ -60,10 +66,10 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
-function articleContent(item: FeedItem) {
+function articleContent(item: FeedItem, channels: readonly SmartChannel[] = []) {
   return {
     id: item.id,
-    channelId: item.channelId,
+    channelId: canonicalChannelId(item.channelId, channels),
     title: item.title,
     body: item.body,
     timestamp: item.timestamp,
@@ -74,9 +80,9 @@ function articleContent(item: FeedItem) {
   };
 }
 
-function syncItem(item: FeedItem, entry?: TrashEntry) {
+function syncItem(item: FeedItem, entry?: TrashEntry, channels: readonly SmartChannel[] = []) {
   return {
-    ...articleContent(item),
+    ...articleContent(item, channels),
     read: item.read,
     saved: item.saved,
     feedback: item.feedback,
@@ -103,12 +109,12 @@ export const articleApi = {
     return request<ArticleListResponse>(settings, `/api/v1/articles?state=${state}`, {}, true);
   },
 
-  async syncArticles(settings: AppSettings, feed: FeedItem[], trash: TrashEntry[]) {
+  async syncArticles(settings: AppSettings, feed: FeedItem[], trash: TrashEntry[], channels: readonly SmartChannel[] = []) {
     const trashItems = trash
       .filter((entry): entry is TrashEntry & { item: FeedItem } => Boolean(entry.item))
-      .map((entry) => syncItem(entry.item, entry));
+      .map((entry) => syncItem(entry.item, entry, channels));
     const items = [
-      ...feed.filter((item) => !item.id.startsWith("demo-message-")).map((item) => syncItem(item)),
+      ...feed.filter((item) => !item.id.startsWith("demo-message-")).map((item) => syncItem(item, undefined, channels)),
       ...trashItems.filter((item) => !item.id.startsWith("demo-message-")),
     ];
     return request<{ accepted: number }>(
@@ -119,13 +125,17 @@ export const articleApi = {
     );
   },
 
-  batchArticles(settings: AppSettings, items: FeedItem[]) {
+  async batchArticles(settings: AppSettings, items: FeedItem[], channels: readonly SmartChannel[] = [], resolveIds = false): Promise<ArticleBatchResult> {
     const realItems = items.filter((item) => !item.id.startsWith("demo-message-"));
-    if (realItems.length === 0) return Promise.resolve({ accepted: 0 });
-    return request<{ accepted: number }>(settings, "/api/v1/articles/batch", {
+    if (realItems.length === 0) return resolveIds ? { accepted: 0, idMap: {} } : { accepted: 0 };
+    const result = await request<ArticleBatchResult>(settings, `/api/v1/articles/batch${resolveIds ? "?resolve_ids=true" : ""}`, {
       method: "POST",
-      body: JSON.stringify({ items: realItems.map(articleContent) }),
+      body: JSON.stringify({ items: realItems.map((item) => articleContent(item, channels)) }),
     });
+    if (resolveIds && realItems.some(item => typeof result.idMap?.[item.id] !== "string" || !result.idMap[item.id].trim())) {
+      throw new Error("服务器未返回文章保存编号，请稍后重新同步。");
+    }
+    return result;
   },
 
   updateState(settings: AppSettings, articleId: string, update: ArticleStateUpdate) {
@@ -141,16 +151,17 @@ export const articleApi = {
     return request<SmartChannel[]>(settings, "/api/v1/channels");
   },
 
-  upsertChannel(settings: AppSettings, channel: SmartChannel) {
-    const { authToken: _authToken, lastSyncAt: _lastSyncAt, isDemo: _isDemo, ...safe } = channel;
+  upsertChannel(settings: AppSettings, channel: SmartChannel, channels: readonly SmartChannel[] = [channel]) {
+    const { authToken: _authToken, authTokenServer: _authTokenServer, authTokenTopic: _authTokenTopic,
+      lastSyncAt: _lastSyncAt, isDemo: _isDemo, aliases: _aliases, managed: _managed, readViaApi: _readViaApi, ...safe } = channel;
     return request<{ id: string }>(settings, "/api/v1/channels", {
       method: "POST",
-      body: JSON.stringify(safe),
+      body: JSON.stringify({ ...safe, id: canonicalChannelId(channel.id, channels) }),
     });
   },
 
-  deleteChannel(settings: AppSettings, channelId: string) {
-    return request<void>(settings, `/api/v1/channels/${encodeURIComponent(channelId)}`, {
+  deleteChannel(settings: AppSettings, channelId: string, channels: readonly SmartChannel[] = []) {
+    return request<void>(settings, `/api/v1/channels/${encodeURIComponent(canonicalChannelId(channelId, channels))}`, {
       method: "DELETE",
     });
   },

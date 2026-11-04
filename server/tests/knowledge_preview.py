@@ -107,6 +107,10 @@ thread.start()
 def release():
     return dict(tag_name="v0.5.0", assets=[], html_url="http://127.0.0.1/")
 
+if os.environ.get("KNOWLEDGE_ENHANCED_E2E") == "true":
+    from knowledge_enhanced_preview import install
+    install(app)
+
 try:
     uvicorn.run(app, host="127.0.0.1", port=int(sys.argv[1]), log_level="warning")
 finally:

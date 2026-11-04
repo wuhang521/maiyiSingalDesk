@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "version": "0.6.4",
+  "revision": "R3",
+  "created_utc": "2026-11-04T01:42:16.583307+00:00",
+  "source_main_sha256": "9b0aaa011d79cb78ae5b7d27c88405601c8e5a9db5a34c8a9f394dc6c25ce046",
+  "all_required_checks_passed": true,
+  "canonical": {
+    "frontend_tests_passed": 200,
+    "typecheck_exit": 0,
+    "vite_exit": 0,
+    "health_backend_passed": 194,
+    "health_backend_skipped": 2
+  },
+  "publication_source": {
+    "frontend_tests_passed": 200,
+    "typecheck_exit": 0,
+    "vite_exit": 0,
+    "lifecycle_cases_passed": 8,
+    "stream_cases_passed": 5,
+    "backend_passed": 922,
+    "backend_skipped": 7,
+    "operations_pytest_passed": 137,
+    "operations_skipped": 1,
+    "operations_subtests_passed": 8,
+    "desktop_node_exit": 0
+  },
+  "workspace_preservation": {
+    "passed": true,
+    "original_paths_checked": 575,
+    "preserved_outside_sync": 572,
+    "sync_files_verified": 55,
+    "preserved_conflicts": 12,
+    "index_unchanged": true,
+    "head_unchanged": true,
+    "errors": []
+  },
+  "scope": {
+    "fresh_source_checks": true,
+    "personal_client_operated": false,
+    "production_changed": false,
+    "qq_tested": false,
+    "real_os_notification_proven": false,
+    "daily_schedule_enabled_by_this_sync": false
+  },
+  "initial_attempts": "First sandbox runs are retained locally: socketpair and hard-link restrictions, one 5s team-pagination timeout under parallel load, and dependency-link setup. Product code and test timeouts were unchanged for the passing runs."
+}

@@ -1,0 +1,26 @@
+{
+  "status": "PREPARED_NOT_DEPLOYED",
+  "source_root": "D:/maiyi/tmp/health-push-064-src",
+  "files": [
+    {
+      "path": "scripts/apply-health-ack-update.py",
+      "sha256": "3288400e7e171ca63ba0a2bdd12a4371acbda7e3c3ff2f6419da330693789e2d"
+    },
+    {
+      "path": "scripts/test_apply_health_ack_update.py",
+      "sha256": "acc02655143d1d233ca2f88dc8f7a3d084c25d2c396fef0d8c2a4c93d01fe825"
+    }
+  ],
+  "synthetic_tests_passed": 13,
+  "synthetic_tests_failed": 0,
+  "production_or_gui_actions": false,
+  "default_mode": "dry_run",
+  "collector_written_or_removed": false,
+  "before_worker_sha256": "aad239c7566837705a9ef8d9c9bccae90adfa0c3f27eb90fa315816a84bf586e",
+  "collector_required_sha256": "04e179b61df6d86e3c714c49fca297e9517fc01b8df674c083743d0fa87cf5be",
+  "root_reviewed_after_worker_sha256": "91e5f649ff6773b08b0ba40e92656ed5457b42c811ac873c2a1d3302f1a3130d",
+  "log": "synthetic-tests.log",
+  "log_sha256": "a45461e94c11b946bd402b4afd5870a123e67a721dcd1027610564876202a15e",
+  "old_twofile_updater_edited": false,
+  "messages_sent": 0
+}

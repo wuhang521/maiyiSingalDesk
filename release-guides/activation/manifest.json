@@ -1,0 +1,44 @@
+{
+  "status": "READ_ONLY_PLAN_PASSED_WAITING_REVIEWED_R3_CLIENT_RECEIPT",
+  "scope": "fixed-host health-only activation helper and synthetic tests",
+  "source_root": "D:/maiyi/tmp/health-push-064-src",
+  "files": [
+    {
+      "path": "scripts/activate-health-schedule.py",
+      "sha256": "7d6c97a200b75650a31ea5fab7b426f8c9a071a3058f1e80fcafcc0278717a54"
+    },
+    {
+      "path": "scripts/test_activate_health_schedule.py",
+      "sha256": "cc0d264f4070dd0459e94e5655c2648829a1fc1e0f7d4a8b9a7db58a82e7b8d8"
+    }
+  ],
+  "verification": {
+    "synthetic_tests": {
+      "failed": 0,
+      "passed": 59,
+      "duration_seconds": 7.54
+    },
+    "log": "typed-calendar.green.log",
+    "log_sha256": "d18380d52076159cf3a2d8a8ef388a83c7433266d51b3f870e967b5af8acf5d2",
+    "production_systemctl_network_and_config_mocked": true,
+    "posix_runtime_acceptance": "NOT_RUN",
+    "production_ssh_read_only_plan_performed": true,
+    "activation_or_ui_performed": false,
+    "real_plan": "real-plan-typed-calendar.json",
+    "real_plan_sha256": "d1e052da798ca05f3686f888e86cdaebf8ea8c68e1820d13a188e9cd4c135a2c",
+    "real_plan_passed": true,
+    "activation_ready": false,
+    "actual_future_calendar_verification": "PENDING_ROOT_ACTIVATION_AFTER_R3_RECEIPT",
+    "typed_calendar_shape_live": "a(sst) confirmed on existing acceptance timer, timestamp0 not claimed as future"
+  },
+  "required_before_activation": [
+    "Root frozen two-file deployed after-image SHA256 manifest",
+    "real unique private timer acceptance v1 evidence and its frozen SHA256",
+    "Root separately reviewed client receipt SHA256 and explicit --client-ui-reviewed",
+    "read-only server code/unit/config/channel/destination/timezone/NTP gates"
+  ],
+  "default_mode": "plan",
+  "direct_messages_sent": 0,
+  "client_ui_automatically_verified": false,
+  "server_helper": "/var/tmp/signaldesk-health-activate-7d6c97a2.py"
+}

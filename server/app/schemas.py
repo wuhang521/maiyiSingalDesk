@@ -188,6 +188,9 @@ class SmartChannelUpsert(BaseModel):
 class SmartChannelRead(SmartChannelUpsert):
     createdAt: int
     updatedAt: int
+    aliases: list[str] = Field(default_factory=list)
+    managed: bool = False
+    readViaApi: bool = False
 
 
 class ArticleInput(BaseModel):

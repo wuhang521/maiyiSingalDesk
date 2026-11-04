@@ -9,7 +9,9 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from .auth import require_api_key
+from .channel_aliases import aliases_for, is_managed, lock_managed_channels, resolve_channel_id
 from .database import get_db
+from .health_relay import relay as relay_health
 from .models import Article, ArticleUserState, SmartChannel, utcnow
 from .schemas import (
     ArticleBatchRequest,
@@ -57,18 +59,34 @@ def article_hash(item: ArticleInput) -> str:
 
 
 def upsert_article(db: Session, item: ArticleInput) -> Article:
-    article = db.get(Article, item.id)
+    managed_input = is_managed(db, item.channelId)
+    article_query = select(Article).where(Article.id == item.id)
+    if managed_input:
+        article_query = article_query.with_for_update().execution_options(populate_existing=True)
+    article = db.scalar(article_query) if managed_input else db.get(Article, item.id)
     content_hash = article_hash(item)
     if article is None:
-        article = db.scalar(
+        content_query = (
             select(Article)
             .where(Article.content_hash == content_hash)
             .order_by(Article.created_at)
             .limit(1)
         )
+        if managed_input:
+            content_query = content_query.with_for_update().execution_options(populate_existing=True)
+        article = db.scalar(content_query)
+    # Managed originals are immutable to cache/push replays. In particular a
+    # daily: prefix is not authority to move an existing article or retime it.
+    # Personal state remains keyed by the original article ID in sync_articles.
+    if article is not None and is_managed(db, article.channel_id):
+        if not managed_input:
+            lock_managed_channels(db, [article.channel_id])
+            article = db.scalar(select(Article).where(Article.id == article.id)
+                                .with_for_update().execution_options(populate_existing=True))
+        return article
     matched_existing_content = article is not None and article.id != item.id
     values = {
-        "channel_id": item.channelId,
+        "channel_id": resolve_channel_id(db, item.channelId),
         "title": item.title,
         "body": item.body,
         "source": item.source,
@@ -145,7 +163,7 @@ def article_read(article: Article, state: ArticleUserState | None) -> ArticleRea
     )
 
 
-def channel_read(channel: SmartChannel) -> SmartChannelRead:
+def channel_read(channel: SmartChannel, aliases: list[str] | None = None) -> SmartChannelRead:
     return SmartChannelRead(
         id=channel.id,
         name=channel.name,
@@ -161,13 +179,24 @@ def channel_read(channel: SmartChannel) -> SmartChannelRead:
         state=channel.state,
         createdAt=milliseconds(channel.created_at) or 0,
         updatedAt=milliseconds(channel.updated_at) or 0,
+        aliases=aliases or [],
+        managed=bool(aliases),
+        readViaApi=channel.id == 'health' and bool(aliases),
     )
 
 
 @router.get("/channels", response_model=list[SmartChannelRead])
 def list_channels(db: Session = Depends(get_db)) -> list[SmartChannelRead]:
     channels = db.scalars(select(SmartChannel).order_by(SmartChannel.name)).all()
-    return [channel_read(channel) for channel in channels]
+    return [channel_read(channel, aliases_for(db, channel.id)) for channel in channels
+            if resolve_channel_id(db, channel.id) == channel.id]
+
+
+@router.get('/health-relay/health/json')
+async def health_relay(poll: str = Query(default='0',pattern='^[01]$'),
+                       since: str = Query(default='10m',max_length=3),
+                       db: Session = Depends(get_db)):
+    return await relay_health(db,poll,since)
 
 
 @router.post("/channels")
@@ -176,6 +205,12 @@ def upsert_channel(
     preserve_connection: bool = False,
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
+    managed = lock_managed_channels(db, [payload.id])
+    if managed:
+        # Startup cache synchronization and deliberate edits have the same old
+        # POST shape. A managed publisher connection is changed by maintenance,
+        # never overwritten by one of these indistinguishable cached payloads.
+        return {"id": resolve_channel_id(db, payload.id)}
     channel = db.get(SmartChannel, payload.id)
     values = {
         "name": payload.name.strip(),
@@ -207,6 +242,11 @@ def upsert_channel(
 
 @router.delete("/channels/{channel_id}", status_code=204, response_class=Response)
 def delete_channel(channel_id: str, db: Session = Depends(get_db)) -> Response:
+    managed = lock_managed_channels(db, [channel_id])
+    if resolve_channel_id(db, channel_id) != channel_id:
+        return Response(status_code=204)
+    if managed:
+        raise HTTPException(409, '此频道由服务器统一管理，不能从客户端删除')
     channel = db.get(SmartChannel, channel_id)
     if not channel:
         raise HTTPException(status_code=404, detail="频道不存在")
@@ -216,13 +256,45 @@ def delete_channel(channel_id: str, db: Session = Depends(get_db)) -> Response:
 
 
 @router.post("/articles/batch")
-def batch_articles(payload: ArticleBatchRequest, db: Session = Depends(get_db)) -> dict[str, int]:
-    unique_items = {item.id: item for item in payload.items}
+def batch_articles(payload: ArticleBatchRequest, resolve_ids: bool = False,
+                   db: Session = Depends(get_db)) -> dict[str, int | dict[str,str]]:
+    unique_items = {item.id: item for item in payload.items if not managed_health_status(db, item)}
+    lock_article_channels(db, unique_items.values())
+    id_map = {}
     for item in unique_items.values():
-        upsert_article(db, item)
+        article = upsert_article(db, item)
+        if resolve_ids:
+            id_map[item.id] = article.id
         db.flush()
     db.commit()
+    if resolve_ids:
+        return {"accepted": len(unique_items), "idMap": id_map}
     return {"accepted": len(unique_items)}
+
+
+def managed_health_status(db: Session, item: ArticleInput) -> bool:
+    # Reserved worker control messages can be mistaken for articles by old
+    # clients. They must create neither an original nor personal state.
+    return ('health_status' in item.tags and resolve_channel_id(db, item.channelId) == 'health'
+            and is_managed(db, item.channelId))
+
+
+def lock_article_channels(db: Session, items) -> None:
+    # Include stored IDs: a stale cache may claim an unrelated incoming channel
+    # for an article that already belongs to a managed canonical channel.
+    items = list(items)
+    stored = db.scalars(select(Article.channel_id).where(Article.id.in_([item.id for item in items]))).all()
+    lock_managed_channels(db, [item.channelId for item in items] + list(stored))
+
+
+def personal_article_state(db: Session, operator: str, article: Article) -> ArticleUserState | None:
+    if not is_managed(db, article.channel_id):
+        return db.get(ArticleUserState, (operator, article.id))
+    # A current read is essential after waiting for the canonical lock: MySQL's
+    # earlier alias reads may already have established a REPEATABLE READ view.
+    return db.scalar(select(ArticleUserState).where(
+        ArticleUserState.operator_name == operator, ArticleUserState.article_id == article.id)
+        .with_for_update().execution_options(populate_existing=True))
 
 
 @router.post("/articles/sync")
@@ -233,10 +305,12 @@ def sync_articles(
 ) -> dict[str, int]:
     accepted = 0
     now_ms = current_milliseconds()
-    for item in {item.id: item for item in payload.items}.values():
+    unique_items = {item.id: item for item in payload.items if not managed_health_status(db, item)}
+    lock_article_channels(db, unique_items.values())
+    for item in unique_items.values():
         article = upsert_article(db, item)
         db.flush()
-        state = db.get(ArticleUserState, (operator, article.id))
+        state = personal_article_state(db, operator, article)
         incoming_ms = item.stateUpdatedAt or now_ms
         if state is None:
             state = ArticleUserState(operator_name=operator, article_id=article.id)
@@ -298,7 +372,8 @@ def update_article_state(
     article = db.get(Article, article_id)
     if not article:
         raise HTTPException(status_code=404, detail="文章不存在")
-    state = db.get(ArticleUserState, (operator, article_id))
+    lock_managed_channels(db, [article.channel_id])
+    state = personal_article_state(db, operator, article)
     if state is None:
         state = ArticleUserState(
             operator_name=operator,

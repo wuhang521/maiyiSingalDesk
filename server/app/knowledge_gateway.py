@@ -145,8 +145,10 @@ async def gateway_attachment(request: Request, db: Session = Depends(get_db)):
     filename = payload.filename.replace("\\", "/").rsplit("/", 1)[-1]
     if Path(filename).suffix.lower() not in TEXT_EXTENSIONS | MEDIA_EXTENSIONS | IMAGE_EXTENSIONS or any(ord(c) < 32 for c in filename):
         raise HTTPException(422, "附件格式不支持，请发送 JPG / PNG / PDF、支持的音视频或文字文件。")
-    db.add(KnowledgeNonce(nonce=nonce))
+    # Cleanup before add keeps autoflush-enabled sessions inside the
+    # duplicate-nonce commit handler instead of raising during the DELETE.
     db.execute(delete(KnowledgeNonce).where(KnowledgeNonce.created_at < utcnow() - timedelta(minutes=5)))
+    db.add(KnowledgeNonce(nonce=nonce))
     try: db.commit()
     except IntegrityError:
         db.rollback(); raise HTTPException(409, "重复的附件签名已拒绝") from None

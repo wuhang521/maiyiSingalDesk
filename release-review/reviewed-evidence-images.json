@@ -1,0 +1,44 @@
+{
+  "images": [
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-compact-managed-channel.png",
+      "sha256": "436478e196e83fb1aa1e82a90d3631ce8eae4b8a2e099984dca37a448e9e0477",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-compact-preserved-trash.png",
+      "sha256": "207aa0924c514b8c0533b1eaaf8294718dbd26501c367113f16a2adfdff345be",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-compact-received-normal.png",
+      "sha256": "9a27a15df57aab4e2693f0874779800ed26346b3bbda49b0198703b00e176d92",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-desktop-managed-channel.png",
+      "sha256": "001662e184f4dc1e5b4062c983b24d4e69c53a1e3690cf6a35e1877ddd965d68",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-desktop-preserved-trash.png",
+      "sha256": "221aaaf62f10a33028f3c0382cff66a77dc28232509853272c6a2a39b6efea94",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-desktop-received-normal.png",
+      "sha256": "f31a2e65d2b0adf282dfc32f7ed6e042c921b3d16cb523637c7b98f039e2cde7",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-failure.png",
+      "sha256": "630181f82e0d354958fd6163cf77ca4155431c4196e5621402482b1113ef7f67",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    },
+    {
+      "path": "evidence/background-r3/channel-e2e/run-fv3Cy9-widget-main-minimized-background.png",
+      "sha256": "ae6bc657a70faf12490e9970a2e115c1fb0f0d9a0b6d24fc0cee63f1f066da29",
+      "classification": "Individually viewed synthetic R3 first-attempt screenshot; no real profile, identity, payload, topic or credential; retained harness metadata-assertion red evidence"
+    }
+  ]
+}

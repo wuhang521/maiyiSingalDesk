@@ -1,6 +1,7 @@
 import { ArrowLeft, ArrowRight, Check, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { deriveChannelRules } from "../lib/channelRules";
+import { usesHealthRelay } from "../lib/ntfy";
 import type { AppSettings, ChannelColor, SmartChannel } from "../types";
 
 interface ChannelDialogProps {
@@ -76,6 +77,11 @@ export function ChannelDialog({
   }
 
   function save() {
+    if (channel && usesHealthRelay(channel)) { onClose(); return; }
+    if (channel?.managed) {
+      onSave({ ...channel, authToken: form.authToken.trim(), authTokenServer: channel.server, authTokenTopic: channel.topic });
+      return;
+    }
     const timestamp = Date.now();
     onSave({
       id: channel?.id || crypto.randomUUID(),
@@ -85,6 +91,8 @@ export function ChannelDialog({
       topic: form.topic.trim(),
       server: form.server.trim() || settings.defaultServer,
       authToken: form.authToken.trim(),
+      authTokenServer: form.server.trim() || settings.defaultServer,
+      authTokenTopic: form.topic.trim(),
       schedule: form.schedule,
       maxItems: Math.min(100, Math.max(1, Number(form.maxItems))),
       includeTerms: splitTerms(form.includeTerms),
@@ -147,11 +155,13 @@ export function ChannelDialog({
           </div>
         ) : (
           <div className="dialog-body rule-step">
+            {channel?.managed && <p role="note">服务器统一管理此频道，提前准备情报，每天北京时间 {channel.schedule} 推送；尚未就绪时会提示状态。{usesHealthRelay(channel) ? "由服务器接收推送，历史文章从服务器同步，无需在本机配置ntfy访问令牌。" : "规则、时间和连接由服务器维护；这里只保存本机访问令牌。"}</p>}
             <div className="form-grid two-column">
               <label className="field-group">
                 <span>频道名称</span>
                 <input
                   aria-label="频道名称"
+                  disabled={channel?.managed}
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
                 />
@@ -160,6 +170,7 @@ export function ChannelDialog({
                 <span>每天推送时间</span>
                 <input
                   aria-label="每天推送时间"
+                  disabled={channel?.managed}
                   type="time"
                   value={form.schedule}
                   onChange={(event) => setForm({ ...form, schedule: event.target.value })}
@@ -170,6 +181,7 @@ export function ChannelDialog({
               <span>频道说明</span>
               <input
                 aria-label="频道说明"
+                disabled={channel?.managed}
                 value={form.description}
                 onChange={(event) => setForm({ ...form, description: event.target.value })}
               />
@@ -179,6 +191,7 @@ export function ChannelDialog({
                 <span>必须关注</span>
                 <input
                   aria-label="必须关注"
+                  disabled={channel?.managed}
                   value={form.includeTerms}
                   placeholder="多个词用逗号分隔"
                   onChange={(event) => setForm({ ...form, includeTerms: event.target.value })}
@@ -188,6 +201,7 @@ export function ChannelDialog({
                 <span>排除内容</span>
                 <input
                   aria-label="排除内容"
+                  disabled={channel?.managed}
                   value={form.excludeTerms}
                   placeholder="多个词用逗号分隔"
                   onChange={(event) => setForm({ ...form, excludeTerms: event.target.value })}
@@ -200,6 +214,7 @@ export function ChannelDialog({
                 <div className="input-suffix">
                   <input
                     aria-label="每日最多"
+                    disabled={channel?.managed}
                     type="number"
                     min="1"
                     max="100"
@@ -213,6 +228,7 @@ export function ChannelDialog({
                 <span>识别颜色</span>
                 <select
                   aria-label="识别颜色"
+                  disabled={channel?.managed}
                   value={form.color}
                   onChange={(event) =>
                     setForm({ ...form, color: event.target.value as ChannelColor })
@@ -229,6 +245,7 @@ export function ChannelDialog({
                   type="button"
                   role="switch"
                   aria-label="保存后启用"
+                  disabled={channel?.managed}
                   aria-checked={form.active}
                   className={`switch ${form.active ? "on" : ""}`}
                   onClick={() => setForm({ ...form, active: !form.active })}
@@ -241,13 +258,14 @@ export function ChannelDialog({
             <div className="connection-box">
               <div>
                 <strong>ntfy 通知通道</strong>
-                <span>Topic 可稍后配置，未配置时频道保存为草稿。</span>
+                <span>{channel?.managed ? "服务器受管连接；访问令牌仅保存在本机。" : "Topic 可稍后配置，未配置时频道保存为草稿。"}</span>
               </div>
               <div className="form-grid two-column">
                 <label className="field-group">
                   <span>服务器</span>
                   <input
                     aria-label="服务器"
+                    disabled={channel?.managed}
                     value={form.server}
                     placeholder="https://ntfy.sh"
                     onChange={(event) => setForm({ ...form, server: event.target.value })}
@@ -257,13 +275,14 @@ export function ChannelDialog({
                   <span>Topic</span>
                   <input
                     aria-label="Topic"
+                    disabled={channel?.managed}
                     value={form.topic}
                     placeholder="例如 company-health-radar"
                     onChange={(event) => setForm({ ...form, topic: event.target.value })}
                   />
                 </label>
               </div>
-              <label className="field-group">
+              {!(channel && usesHealthRelay(channel)) && <label className="field-group">
                 <span>访问令牌（可选）</span>
                 <input
                   aria-label="访问令牌"
@@ -272,7 +291,7 @@ export function ChannelDialog({
                   placeholder="tk_..."
                   onChange={(event) => setForm({ ...form, authToken: event.target.value })}
                 />
-              </label>
+              </label>}
             </div>
           </div>
         )}
@@ -294,7 +313,7 @@ export function ChannelDialog({
           ) : (
             <button className="primary-button" type="button" disabled={!canSave} onClick={save}>
               <Check size={15} />
-              保存频道
+              {channel && usesHealthRelay(channel) ? "完成" : "保存频道"}
             </button>
           )}
         </footer>

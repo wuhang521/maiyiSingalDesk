@@ -1,0 +1,7 @@
+name: wechat-knowledge
+version: 0.3.0
+description: "Private WeChat knowledge collection with signed gateway provenance."
+author: SignalDesk
+kind: standalone
+provides_hooks:
+  - pre_gateway_dispatch

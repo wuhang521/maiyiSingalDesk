@@ -12,7 +12,7 @@ from .database import get_db
 from .knowledge_models import KnowledgeCloudUsage, KnowledgeCostReservation
 from .models import UserAccount, utcnow
 router = APIRouter(prefix="/api/v1/knowledge", tags=["knowledge-costs"])
-OPERATIONS = {"doubao_ocr", "volc_asr", "video_ocr", "cloud_organize", "semantic_index", "semantic_query", "cloud_qa"}
+OPERATIONS = {"doubao_ocr", "volc_asr", "qwen_asr", "video_ocr", "cloud_organize", "semantic_index", "semantic_query", "cloud_qa"}
 
 def micros(value):
     if not isinstance(value, str) or len(value) > 30: raise ValueError()

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AppSettings } from "../types";
 import { knowledgeApi, type KnowledgeCosts as Costs, type KnowledgeCostRow } from "../lib/knowledgeApi";
-const labels: Record<string, string> = { doubao_ocr: "原件 OCR", volc_asr: "语音转写", video_ocr: "采样画面 OCR", cloud_organize: "AI 整理", semantic_index: "语义索引", semantic_query: "语义查询", cloud_qa: "AI 综合问答" };
+const labels: Record<string, string> = { doubao_ocr: "原件 OCR", volc_asr: "语音转写", qwen_asr: "千问语音转写", video_ocr: "采样画面 OCR", cloud_organize: "AI 整理", semantic_index: "语义索引", semantic_query: "语义查询", cloud_qa: "AI 综合问答" };
 export function KnowledgeCosts({ settings, canManage, disabled }: { settings: AppSettings; canManage: boolean; disabled: boolean }) {
   const [costs, setCosts] = useState<Costs | null>(null); const [rows, setRows] = useState<KnowledgeCostRow[]>([]);
   const [admin, setAdmin] = useState(false); const [offset, setOffset] = useState(0); const [tick, setTick] = useState(0);

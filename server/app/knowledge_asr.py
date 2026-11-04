@@ -4,7 +4,6 @@ Official contract: https://www.volcengine.com/docs/6561/1631584?lang=zh
 Conversion is local, bounded and shell-free; only the resulting audio leaves host.
 """
 import base64
-import importlib.util
 import json
 import math
 from pathlib import Path
@@ -21,6 +20,7 @@ import httpx
 
 from .config import get_settings
 from .knowledge_extract import Extraction, MEDIA_EXTENSIONS
+from .knowledge_silk import SILK_EXTENSIONS, is_silk
 
 ENDPOINT = "https://openspeech.bytedance.com/api/v3/auc/bigmodel/recognize/flash"
 RESOURCE = "volc.bigasr.auc_turbo"
@@ -33,6 +33,14 @@ class AsrError(Exception):
 
 def configuration():
     s = get_settings()
+    if s.knowledge_cloud_asr_provider == "qwen":
+        from .knowledge_qwen import configured
+        import re
+        return bool(s.knowledge_cloud_asr_enabled and configured() and
+                    re.fullmatch(r"qwen3-asr-flash(?:-\d{4}-\d{2}-\d{2})?", s.knowledge_cloud_asr_model.strip()) and
+                    shutil.which(s.knowledge_ffmpeg_binary) and shutil.which(s.knowledge_ffprobe_binary))
+    if s.knowledge_cloud_asr_provider != "volc":
+        return False
     credentials = s.knowledge_cloud_asr_api_key.strip() or (
         s.knowledge_cloud_asr_app_id.strip() and s.knowledge_cloud_asr_access_key.strip())
     return bool(s.knowledge_cloud_asr_enabled and credentials and
@@ -40,8 +48,11 @@ def configuration():
 
 
 def silk_configuration():
-    try: return bool(get_settings().knowledge_silk_enabled and importlib.util.find_spec("pilk"))
-    except (ValueError, ImportError): return False
+    if not get_settings().knowledge_silk_enabled: return False
+    try:
+        import pilk
+        return callable(getattr(pilk, "decode", None))
+    except (ValueError, ImportError, OSError): return False
 
 
 def local_command(args, *, timeout):
@@ -59,7 +70,7 @@ def prepare_audio(path, filename, output):
         raise AsrError("请选择已保存的音频或视频文件。")
     if not 0 < path.stat().st_size <= s.knowledge_max_upload_mb * 1024 * 1024:
         raise AsrError("音视频超过后台上传上限，请拆分后导入。")
-    if Path(filename).suffix.lower() == ".silk":
+    if Path(filename).suffix.lower() in SILK_EXTENSIONS or is_silk(path):
         if not silk_configuration() or path.stat().st_size > 20 * 1024 * 1024:
             raise AsrError("微信原生语音已保留，但本地 SILK 解码尚未启用或原件超过 20 MB；请上传 WAV / MP3，不自动安装解码器。")
         decoded = output.parent / "decoded-silk.wav"
@@ -141,6 +152,9 @@ def recognize(path, filename, request_id, *, transport=None, audio_preparer=prep
     if not configuration():
         raise AsrError("云端语音识别未启用、缺少独立 ASR 凭据或转换工具；原件已保留。")
     s = get_settings()
+    if s.knowledge_cloud_asr_provider == "qwen":
+        from .knowledge_qwen import recognize as recognize_qwen
+        return recognize_qwen(path, filename, transport=transport, audio_preparer=audio_preparer, may_send=may_send)
     # Persistent job ID is generated before any remote call, not regenerated on recovery.
     request_id = str(uuid.UUID(request_id))
     headers = {"X-Api-Resource-Id": RESOURCE, "X-Api-Request-Id": request_id, "X-Api-Sequence": "-1"}

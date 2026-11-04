@@ -17,7 +17,7 @@ from .config import get_settings
 
 MAX_TEXT = 1_000_000
 TEXT_EXTENSIONS = {".txt", ".md", ".srt", ".vtt", ".html", ".htm", ".pdf"}
-MEDIA_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".mp3", ".m4a", ".wav", ".aac", ".ogg", ".silk"}
+MEDIA_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".mp3", ".m4a", ".wav", ".aac", ".ogg", ".silk", ".slk", ".aud", ".amr"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 

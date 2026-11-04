@@ -1,0 +1,20 @@
+{
+  "signaldesk-knowledge-weixin": {
+    "secret": "REPLACE_WITH_SERVER_SIDE_SHARED_SECRET",
+    "events": ["knowledge.finished", "knowledge.alert"],
+    "deliver": "weixin", "deliver_only": true,
+    "deliver_extra": { "chat_id": "{recipient_id}" }, "prompt": "{message}"
+  },
+  "signaldesk-knowledge-qq": {
+    "secret": "REPLACE_WITH_SERVER_SIDE_SHARED_SECRET",
+    "events": ["knowledge.finished", "knowledge.alert"],
+    "deliver": "qqbot", "deliver_only": true,
+    "deliver_extra": { "chat_id": "{recipient_id}" }, "prompt": "{message}"
+  },
+  "signaldesk-knowledge-wecom": {
+    "secret": "REPLACE_WITH_SERVER_SIDE_SHARED_SECRET",
+    "events": ["knowledge.finished", "knowledge.alert"],
+    "deliver": "wecom", "deliver_only": true,
+    "deliver_extra": { "chat_id": "{recipient_id}" }, "prompt": "{message}"
+  }
+}

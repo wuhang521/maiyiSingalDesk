@@ -1,0 +1,3 @@
+# Optional server-only native decoder; build in a restricted offline sandbox.
+# Upstream source sha256: d4a1bcf93dc6ef5e95e0cfd728ed4ef4d49f9c0476d70816fecbe456cc762e7f
+pilk==0.2.4

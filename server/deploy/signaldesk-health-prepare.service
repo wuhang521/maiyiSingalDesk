@@ -1,0 +1,27 @@
+[Unit]
+Description=Prepare the daily health news snapshot before delivery
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# systemd 219 rejects Restart for Type=oneshot. The bounded Python job
+# exits after preparation; failure restarts are rate-limited here.
+Type=simple
+StartLimitInterval=1h
+StartLimitBurst=3
+User=signaldesk-task
+Group=signaldesk-task
+WorkingDirectory=/opt/signaldesk-task
+EnvironmentFile=/opt/signaldesk-task/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/signaldesk-task/.venv/bin/python -m app.health_delivery --mode prepare --state-dir /var/lib/signaldesk-health --collector-root /opt/signaldesk --config /etc/signaldesk/health-delivery.env
+TimeoutStartSec=35min
+Restart=on-failure
+RestartSec=5min
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWriteDirectories=/var/lib/signaldesk-health

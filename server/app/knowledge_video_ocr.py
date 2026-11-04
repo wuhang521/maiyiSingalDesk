@@ -27,21 +27,30 @@ def frames(path, filename, directory):
         raise knowledge_ocr.OcrError("请选择已保存的视频；分享链接不能直接识别画面。")
     try:
         raw=local_command([s.knowledge_ffprobe_binary,"-v","error","-protocol_whitelist","file,pipe",
-            "-show_entries","format=duration:stream=codec_type","-of","json",str(path.resolve())],timeout=15)
+            "-show_entries","format=duration:stream=codec_type,duration","-of","json",str(path.resolve())],timeout=15)
         if len(raw)>1_000_000: raise ValueError()
         metadata=json.loads(raw); duration=float(metadata['format']['duration'])
         if not math.isfinite(duration) or not 0<duration<=600:
             raise ValueError()
-        if not any(stream.get('codec_type')=='video' for stream in metadata['streams']):
+        video = next((stream for stream in metadata['streams'] if stream.get('codec_type') == 'video'), None)
+        if not video:
             raise ValueError()
+        try:
+            video_duration = float(video.get('duration', duration))
+            if not math.isfinite(video_duration) or video_duration <= 0: raise ValueError()
+            duration = min(duration, video_duration)
+        except (TypeError, ValueError):
+            pass  # Some containers expose only format duration.
         outputs=[]; seen=set()
         for index in range(s.knowledge_video_ocr_max_frames):
-            at=min(max(0,duration-.1),index*duration/max(1,s.knowledge_video_ocr_max_frames-1))
+            # Uniform left-edge samples avoid seeking into an audio-only tail.
+            at=index*duration/s.knowledge_video_ocr_max_frames
             output=directory/f'frame-{index}.png'
             local_command([s.knowledge_ffmpeg_binary,'-nostdin','-v','error','-protocol_whitelist','file,pipe',
                 '-ss',f'{at:.3f}','-i',str(path.resolve()),'-map','0:v:0','-an','-sn','-dn','-frames:v','1',
                 '-vf',"scale=w='min(1600,iw)':h='min(1600,ih)':force_original_aspect_ratio=decrease",'-n',str(output)],timeout=20)
-            if not output.is_file() or not 8<output.stat().st_size<=20*1024*1024: raise ValueError()
+            if not output.is_file(): continue  # FFmpeg can exit 0 beyond video EOF.
+            if not 8<output.stat().st_size<=20*1024*1024: raise ValueError()
             digest=hashlib.sha256(output.read_bytes()).hexdigest()
             if digest in seen: continue
             seen.add(digest); outputs.append((at,output))

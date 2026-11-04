@@ -7,6 +7,39 @@ from app import knowledge_ocr, knowledge_video_ocr
 from app.knowledge_extract import Extraction
 
 
+def test_frame_sampler_uses_video_duration_when_audio_has_a_longer_tail(tmp_path, monkeypatch):
+    import json
+    source = tmp_path / 'synthetic.mp4'; source.write_bytes(b'synthetic-source')
+    directory = tmp_path / 'frames'; directory.mkdir()
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), 'knowledge_video_ocr_max_frames', 2)
+    def command(args, **kwargs):
+        if '-show_entries' in args:
+            return json.dumps({'format': {'duration': '7.053016'}, 'streams': [{'codec_type': 'video', 'duration': '6.916667'}, {'codec_type': 'audio', 'duration': '7.053016'}]}).encode()
+        at = float(args[args.index('-ss') + 1])
+        # FFmpeg may return success with no PNG when seeking beyond video EOF.
+        if at < 6.916667: Path(args[-1]).write_bytes(b'synthetic-png-header-' + str(at).encode())
+        return b''
+    monkeypatch.setattr(knowledge_video_ocr, 'local_command', command)
+    sampled = knowledge_video_ocr.frames(source, source.name, directory)
+    assert len(sampled) == 2 and all(at < 6.916667 for at, _ in sampled)
+
+
+def test_frame_sampler_keeps_existing_samples_when_container_has_no_track_duration(tmp_path, monkeypatch):
+    import json
+    source = tmp_path / 'synthetic.mp4'; source.write_bytes(b'synthetic-source')
+    directory = tmp_path / 'frames'; directory.mkdir()
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), 'knowledge_video_ocr_max_frames', 2)
+    def command(args, **kwargs):
+        if '-show_entries' in args:
+            return json.dumps({'format': {'duration': '8'}, 'streams': [{'codec_type': 'video'}]}).encode()
+        if float(args[args.index('-ss') + 1]) == 0: Path(args[-1]).write_bytes(b'synthetic-png-header')
+        return b''
+    monkeypatch.setattr(knowledge_video_ocr, 'local_command', command)
+    assert len(knowledge_video_ocr.frames(source, source.name, directory)) == 1
+
+
 def synthetic_frames(path, filename, directory):
     outputs = []
     for at in [0.0, 8.5]:

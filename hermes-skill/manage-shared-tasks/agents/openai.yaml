@@ -1,0 +1,4 @@
+interface:
+  display_name: "共享任务管理"
+  short_description: "优先识别人员任务分配，并即时通知、查询和定时提醒负责人"
+  default_prompt: "使用 $manage-shared-tasks 把给指定人员安排的工作写入共享任务系统并通知负责人。"

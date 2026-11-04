@@ -1,0 +1,57 @@
+name: Mobile checks
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-checks.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-checks.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: iOS simulator build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build SwiftUI app
+        run: >-
+          xcodebuild
+          -project mobile/ios/MaiyiTasks.xcodeproj
+          -scheme MaiyiTasks
+          -sdk iphonesimulator
+          -configuration Debug
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+  harmony-config:
+    name: HarmonyOS project configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JSON and JSON5 configuration
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          function walk(directory) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const target = path.join(directory, entry.name);
+              if (entry.isDirectory()) walk(target);
+              else if (/\.json5?$/.test(entry.name)) JSON.parse(fs.readFileSync(target, 'utf8'));
+            }
+          }
+
+          walk('mobile/harmony');
+          NODE

@@ -1,4 +1,5 @@
 import type { AppSettings, FeedItem, NtfyMessage, SmartChannel } from "../types";
+import { canonicalChannelId } from "./channelIdentity";
 
 const ARTICLE_HEADING = /^###\s+(\d+)[.、]\s*(.+?)\s*$/gm;
 
@@ -6,9 +7,11 @@ export function mapNtfyMessageItems(
   channel: SmartChannel,
   payload: NtfyMessage,
 ): FeedItem[] {
+  const channelId = canonicalChannelId(channel.id, [channel]);
+  if (channelId === "health" && payload.tags?.includes("health_status")) return [];
   return splitDigestItem({
     id: payload.id,
-    channelId: channel.id,
+    channelId,
     title: payload.title || channel.name,
     body: payload.message || "",
     timestamp: payload.time * 1000,
@@ -126,13 +129,35 @@ function feedIdentity(item: FeedItem): string {
   return `${title}|${source}`;
 }
 
+export function usesHealthRelay(channel: SmartChannel): boolean {
+  return canonicalChannelId(channel.id, [channel]) === "health" && channel.managed === true && channel.readViaApi === true;
+}
+
+export function channelHistoryWindow(channel: SmartChannel, since: string): string {
+  return usesHealthRelay(channel) && ["3d", "7d", "all"].includes(since) ? "24h" : since;
+}
+
 export function channelConnection(
   channel: SmartChannel,
-  settings: Pick<AppSettings, "defaultServer" | "globalAuthToken">,
+  settings: Pick<AppSettings, "defaultServer" | "globalAuthToken"> & Partial<Pick<AppSettings, "backendUrl" | "backendAuthToken">>,
 ) {
+  if (usesHealthRelay(channel)) {
+    const backend = settings.backendUrl?.trim().replace(/\/+$/, "");
+    const token = settings.backendAuthToken?.trim();
+    if (!backend || !token) return null;
+    try {
+      const target = new URL(backend);
+      if (!["http:", "https:"].includes(target.protocol) || target.username || target.password || target.search || target.hash) return null;
+    } catch { return null; }
+    return { server: backend + "/api/v1/health-relay", topic: "health", token };
+  }
+  const server = channel.server || settings.defaultServer;
+  const tokenServer = channel.authTokenServer ?? server;
+  const tokenTopic = channel.authTokenTopic ?? channel.topic;
+  const matchingCredential = tokenServer.replace(/\/+$/, "") === server.replace(/\/+$/, "") && tokenTopic === channel.topic;
   return {
-    server: channel.server || settings.defaultServer,
+    server,
     topic: channel.topic,
-    token: channel.authToken || settings.globalAuthToken || undefined,
+    token: (matchingCredential ? channel.authToken : "") || settings.globalAuthToken || undefined,
   };
 }

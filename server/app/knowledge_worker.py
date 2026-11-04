@@ -110,7 +110,10 @@ def extract(request, factory=SessionLocal):
                 digest.update(block)
         if digest.hexdigest() != request["sha256"]:
             return dict(state="failed", note="原始文件校验失败，请重新上传。")
-    if request.get("mode") == "volc_asr":
+    if request.get("mode") in {"volc_asr", "qwen_asr"}:
+        expected_provider = "qwen" if request["mode"] == "qwen_asr" else "volc"
+        if get_settings().knowledge_cloud_asr_provider != expected_provider:
+            return dict(state="needs_input", note="语音服务配置已改变，未自动改用其他服务；请刷新后重新确认。")
         if not request.get("path"):
             return dict(state="needs_input", note="转写原件不存在，请重新上传素材。")
         try:
@@ -182,7 +185,7 @@ def finish(job, result, factory=SessionLocal):
                 db.commit()
                 return False
         if result["state"] == "ready":
-            if current.mode in {"volc_asr", "video_ocr"} and current.asset_id:
+            if current.mode in {"volc_asr", "qwen_asr", "video_ocr"} and current.asset_id:
                 from .knowledge_models import KnowledgeMediaPart
                 db.add(KnowledgeMediaPart(id=new_id(), item_id=item.id, asset_id=current.asset_id, source_revision=item.revision,
                     method=result["method"], content=result["text"], chunks=result["chunks"]))

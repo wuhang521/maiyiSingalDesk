@@ -29,6 +29,12 @@ admission = Admission()
 
 def configuration():
     settings = get_settings()
+    if settings.knowledge_embedding_provider == "qwen":
+        from .knowledge_qwen import configured
+        return bool(settings.knowledge_semantic_enabled and configured() and settings.knowledge_embedding_model.strip() in {
+            "text-embedding-v4", "qwen3.7-text-embedding", "qwen3.7-text-embedding-flash"})
+    if settings.knowledge_embedding_provider != "ark":
+        return False
     return bool(settings.knowledge_semantic_enabled and settings.knowledge_embedding_api_key.strip()
                 and re.fullmatch(r"doubao-embedding(?:-large)?-text-\d{6}", settings.knowledge_embedding_model.strip()))
 
@@ -66,29 +72,42 @@ async def embed(texts, *, transport=None, may_send=lambda: True):
     deadline = time.monotonic() + 20
     if not configuration() or not texts or len(texts) > 40 or any(not text.strip() or len(text.encode("utf-8")) > 5000 for text in texts):
         raise HTTPException(422, "向量化配置或文本超出限制；未发送资料。")
+    qwen = settings.knowledge_embedding_provider == "qwen"
+    if qwen:
+        from .knowledge_qwen import base_url
+        endpoint, key, provider = base_url() + "/embeddings", settings.knowledge_qwen_api_key.strip(), "qwen"
+    else:
+        endpoint, key, provider = ENDPOINT, settings.knowledge_embedding_api_key.strip(), "ark"
+    batch_size = 10 if qwen else 40
+    vectors = []
+    resolved = settings.knowledge_embedding_model.strip()
+    dimension = None
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(18, connect=5), trust_env=False,
                                     follow_redirects=False, transport=transport) as client:
-            if not may_send():
-                raise HTTPException(409, "账号、正文或索引状态已改变，未发送后续向量化请求。")
-            async with client.stream("POST", ENDPOINT, headers={"Authorization": f"Bearer {settings.knowledge_embedding_api_key.strip()}"},
-                json=dict(model=settings.knowledge_embedding_model.strip(), input=texts, encoding_format="float")) as response:
-                if response.status_code != 200:
+            for offset in range(0, len(texts), batch_size):
+                if not may_send():
+                    raise HTTPException(409, "账号、正文或索引状态已改变，未发送后续向量化请求。")
+                if time.monotonic() > deadline:
+                    raise ValueError("request budget exceeded")
+                batch = texts[offset:offset + batch_size]
+                async with client.stream("POST", endpoint, headers={"Authorization": "Bearer " + key},
+                    json=dict(model=resolved, input=batch, encoding_format="float")) as response:
                     from .knowledge_provider_trace import record
-                    record("ark", response)
-                    raise ValueError("provider rejected")
-                body = bytearray()
-                async for block in response.aiter_bytes():
-                    body.extend(block)
-                    if len(body) > 5_000_000 or time.monotonic() > deadline:
-                        raise ValueError("response exceeded budget")
-                data = json.loads(body)
-                from .knowledge_provider_trace import record
-                record("ark", response, data)
-                result, model = validated(data, len(texts))
-                if model != settings.knowledge_embedding_model.strip():
-                    raise ValueError("unexpected resolved model")
-                return result, model
+                    if response.status_code != 200:
+                        record(provider, response)
+                        raise ValueError("provider rejected")
+                    body = bytearray()
+                    async for block in response.aiter_bytes():
+                        body.extend(block)
+                        if len(body) > 5_000_000 or time.monotonic() > deadline:
+                            raise ValueError("response exceeded budget")
+                    data = json.loads(body); record(provider, response, data)
+                    result, model = validated(data, len(batch))
+                    if model != resolved or (dimension is not None and len(result[0]) != dimension):
+                        raise ValueError("unexpected resolved model or dimension")
+                    dimension = len(result[0]); vectors.extend(result)
+            return vectors, resolved
     except (httpx.HTTPError, ValueError, TypeError, KeyError, OverflowError):
         raise HTTPException(502, "向量化结果未确认，未自动重试；已发出请求可能计费。原件和正文不变。") from None
 

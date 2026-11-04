@@ -30,7 +30,7 @@ def merge(item_id: str, payload: MergeRequest, user: UserAccount = Depends(requi
     item = owned_item(db, user.id, item_id, lock=True); check_revision(item, payload.revision)
     if db.scalar(select(KnowledgeJob.id).where(KnowledgeJob.item_id == item.id, KnowledgeJob.state.in_(["queued", "running", "retry_wait"]))):
         raise HTTPException(409, "识别仍在进行，完成后再合并")
-    speech = db.scalar(select(KnowledgeMediaPart).where(KnowledgeMediaPart.id == payload.speech_id, KnowledgeMediaPart.item_id == item.id, KnowledgeMediaPart.method == "volc_asr_draft"))
+    speech = db.scalar(select(KnowledgeMediaPart).where(KnowledgeMediaPart.id == payload.speech_id, KnowledgeMediaPart.item_id == item.id, KnowledgeMediaPart.method.in_(["volc_asr_draft", "qwen_asr_draft"])))
     frames = db.scalar(select(KnowledgeMediaPart).where(KnowledgeMediaPart.id == payload.frames_id, KnowledgeMediaPart.item_id == item.id, KnowledgeMediaPart.method == "video_ocr_draft"))
     if not speech or not frames or speech.asset_id != frames.asset_id: raise HTTPException(422, "只能合并同一原视频的音频转写和画面 OCR")
     asset = db.scalar(select(KnowledgeAsset).where(KnowledgeAsset.id == speech.asset_id, KnowledgeAsset.item_id == item.id))

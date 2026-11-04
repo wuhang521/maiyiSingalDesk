@@ -5,11 +5,11 @@ export function KnowledgeAsr({ item, caps, busy, onSubmit }: {
   item: KnowledgeDetail; caps: KnowledgeCapabilities | null; busy: boolean;
   onSubmit: (assetId: string) => Promise<void>;
 }) {
-  const assets = item.assets.filter((a) => /\.(mp4|mov|mkv|webm|mp3|m4a|wav|aac|ogg|silk)$/i.test(a.filename));
+  const assets = item.assets.filter((a) => /\.(mp4|mov|mkv|webm|mp3|m4a|wav|aac|ogg|silk|slk|aud|amr)$/i.test(a.filename));
   const [chosen, setChosen] = useState(assets[0]?.id || "");
   const [consent, setConsent] = useState(false);
   if (!assets.length || item.deleted_at) return null;
-  const silkMissing = /\.silk$/i.test(assets.find(a => a.id === chosen)?.filename || "") && !caps?.silk_available;
+  const silkMissing = /\.(silk|slk|aud)$/i.test(assets.find(a => a.id === chosen)?.filename || "") && !caps?.silk_available;
   const disabled = busy || ["received", "extracting", "retry_wait"].includes(item.status) || !caps?.cloud_asr_enabled;
   const form = <>
     <h3>音频 / 视频转文字</h3>
@@ -30,7 +30,7 @@ export function KnowledgeAsr({ item, caps, busy, onSubmit }: {
     </form>
   </>;
   return <section className="kb-ocr" aria-label="云端语音转写">
-    {["needs_review", "ready"].includes(item.status) && item.method.startsWith("volc_asr")
+    {["needs_review", "ready"].includes(item.status) && /^(volc_asr|qwen_asr)/.test(item.method)
       ? <details><summary>重新转写音轨（可能再次计费）</summary>{form}</details> : form}
   </section>;
 }

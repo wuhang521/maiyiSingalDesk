@@ -4,17 +4,21 @@ from pathlib import Path
 import sqlite3
 import subprocess
 import sys
+import pytest
 
 from sqlalchemy import create_engine
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.dialects import mysql
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from app.database import Base
 from app.knowledge_models import KnowledgeItem
 
 
-def test_migration_preserves_previous_accounts_and_tasks(tmp_path):
-    database = tmp_path / "kb-migration.db"
+@pytest.mark.parametrize("filename", ["kb-migration.db", "kb-percent%migration.db"])
+def test_migration_preserves_previous_accounts_and_tasks(tmp_path, filename):
+    database = tmp_path / filename
     engine = create_engine(f"sqlite:///{database.as_posix()}")
     for table in Base.metadata.sorted_tables:
         if not table.name.startswith("knowledge_"):
@@ -34,7 +38,13 @@ def test_migration_preserves_previous_accounts_and_tasks(tmp_path):
         assert result.returncode == 0, result.stderr
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT name FROM staff").fetchall() == [("Existing staff",)]
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "20261008_12"
+        config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+        config.set_main_option("script_location", str(Path(__file__).resolve().parents[1] / "migrations"))
+        scripts = ScriptDirectory.from_config(config)
+        # Video projects extend the shared schema after the last KB migration.
+        # Verify the actual shared head while retaining the KB ancestry contract.
+        assert "20261008_12" in {revision.revision for revision in scripts.walk_revisions()}
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()[0] == scripts.get_current_head()
         names = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"knowledge_item", "knowledge_asset", "knowledge_chunk", "knowledge_revision", "knowledge_job", "knowledge_nonce", "knowledge_file_cleanup", "knowledge_remote_cleanup", "knowledge_cloud_usage", "knowledge_organization", "knowledge_semantic_index"} <= names
         assert {"knowledge_team", "knowledge_team_member", "knowledge_share", "knowledge_team_event", "knowledge_ingress_receipt",

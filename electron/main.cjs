@@ -5,6 +5,7 @@ const path = require("path");
 const subscriptions = new Map();
 let mainWindow = null;
 let taskWidgetWindow = null;
+let appIsQuitting = false;
 const knowledgeWatch = require("./knowledge-watch.cjs")({ app, ipcMain, dialog, getWindow: () => mainWindow, readSession: readAuthSession });
 const desktopVideo = require("./video-desktop.cjs")({ app, net, readSession: readAuthSession });
 const { autoUpdater } = require("electron-updater");
@@ -92,6 +93,12 @@ function createWindow() {
   lockWindowZoom(mainWindow);
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
+  mainWindow.on("close", (event) => {
+    if (!appIsQuitting && taskWidgetWindow && !taskWidgetWindow.isDestroyed()) {
+      event.preventDefault();
+      mainWindow.minimize();
+    }
+  });
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -555,6 +562,8 @@ ipcMain.handle("app:install-update", async (event) => {
 });
 
 async function streamSubscription(subscriptionId, config, controller, attempt) {
+  const current = () => !controller.signal.aborted && subscriptions.get(subscriptionId) === controller;
+  if (!current()) return;
   try {
     const url = topicUrl(config.server, config.topic, "/json?since=10m");
     const response = await net.fetch(url, {
@@ -562,11 +571,16 @@ async function streamSubscription(subscriptionId, config, controller, attempt) {
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(await parseResponseError(response));
+    if (!current()) return;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("ntfy:event", { type: "status", subscriptionId, status: "connected" });
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    while (!controller.signal.aborted) {
+    while (current()) {
       const { value, done } = await reader.read();
+      if (!current()) return;
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split(/\r?\n/);
@@ -583,8 +597,11 @@ async function streamSubscription(subscriptionId, config, controller, attempt) {
         }
       }
     }
+    if (current() && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("ntfy:event", { type: "status", subscriptionId, status: "reconnecting", error: "接收连接已结束，正在重新连接。" });
+    }
   } catch (error) {
-    if (controller.signal.aborted) return;
+    if (!current()) return;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("ntfy:event", {
         type: "status",
@@ -594,7 +611,7 @@ async function streamSubscription(subscriptionId, config, controller, attempt) {
       });
     }
   }
-  if (!controller.signal.aborted && subscriptions.get(subscriptionId) === controller) {
+  if (current()) {
     const delay = Math.min(30000, 1000 * 2 ** Math.min(attempt, 5));
     setTimeout(() => streamSubscription(subscriptionId, config, controller, attempt + 1), delay);
   }
@@ -615,12 +632,12 @@ function isSafeExternalUrl(value) {
 }
 
 const gotLock = app.requestSingleInstanceLock();
-app.on("before-quit", () => { desktopUpdater.stop(); desktopVideo.stop(); });
+app.on("before-quit", () => { appIsQuitting = true; desktopUpdater.stop(); desktopVideo.stop(); knowledgeWatch.stop(true); });
 if (!gotLock) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (!mainWindow) return;
+    if (!mainWindow || mainWindow.isDestroyed()) { createWindow(); return; }
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();

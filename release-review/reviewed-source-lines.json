@@ -1,0 +1,195 @@
+{
+  "schema": 1,
+  "scope": "Exact current synthetic fixture lines; no file-wide exemption; no literal values exported",
+  "lines": [
+    {
+      "file": "scripts/health-channel-e2e.mjs",
+      "line": 76,
+      "rule": "credential-literal",
+      "line_sha256": "5003b6b4aa8c54a928378f957fd6160ecddb9affda070094ab5c96b11f4c343d",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "scripts/health-channel-e2e.mjs",
+      "line": 98,
+      "rule": "credential-literal",
+      "line_sha256": "5003b6b4aa8c54a928378f957fd6160ecddb9affda070094ab5c96b11f4c343d",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "scripts/health-channel-e2e.mjs",
+      "line": 171,
+      "rule": "credential-literal",
+      "line_sha256": "38e0b8a715f1e7e03e405dd74aa78bfe0478a589540b0dc3adbc8345a27cd5e7",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "scripts/health-channel-e2e.mjs",
+      "line": 344,
+      "rule": "bearer-literal",
+      "line_sha256": "a75ce00128ddafe420ab1049deadc67dcff730d739d192c6386b22f3a5079ba0",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "server/tests/test_health_delivery.py",
+      "line": 347,
+      "rule": "credential-literal",
+      "line_sha256": "cdb0dd882fcc60c7967821737e0ab8bbfce95365e97e8aed492eeab8ba2adef8",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "server/tests/test_health_delivery.py",
+      "line": 355,
+      "rule": "bearer-literal",
+      "line_sha256": "a507e3036101f1b2adc1f80ee00bb6395d7e7165b522beb00780d76d5cd3bb3a",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "server/tests/test_health_relay.py",
+      "line": 60,
+      "rule": "credential-literal",
+      "line_sha256": "4a8acb8dbf9dcf862363893cb5a0368f41f7b84209cd5a02339c152de659b8b2",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "server/tests/test_health_relay.py",
+      "line": 101,
+      "rule": "bearer-literal",
+      "line_sha256": "4fe7dd1ecf34fcb71a9b87bfb1c63db280ef3671bff99cfbca71a2e5e7b86c47",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "server/tests/test_health_relay.py",
+      "line": 112,
+      "rule": "bearer-literal",
+      "line_sha256": "e99e588b8bae19f1133799a9376bc0c70d098443c72c1986fba6c76e216d52c0",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 38,
+      "rule": "credential-literal",
+      "line_sha256": "5d527daf323ca54380ad27190340c2dfef0a08828a434d427e4dc827c030c54e",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 69,
+      "rule": "credential-literal",
+      "line_sha256": "68ee1bd2ae1ec58f574ced08a0897b169dcf08bdc9f47dcf443662b2caf8a7dc",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 101,
+      "rule": "credential-literal",
+      "line_sha256": "37997dfe2d49d8e3006514f7cab5a6b7b1a05b058679be884fe4e29317dc33f8",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 107,
+      "rule": "credential-literal",
+      "line_sha256": "cec9737d66885216a640c916a16f7a8f384e411d3d65b3ea4512b35a61a34208",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 119,
+      "rule": "credential-literal",
+      "line_sha256": "68ee1bd2ae1ec58f574ced08a0897b169dcf08bdc9f47dcf443662b2caf8a7dc",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 173,
+      "rule": "credential-literal",
+      "line_sha256": "316aa707b74a8443f6be0ab8ff84c20dc348c5b5a168bb6a9b8c5a8f217e1ad1",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 176,
+      "rule": "credential-literal",
+      "line_sha256": "5073c305d7c21c672d027f4018ec0ab36973f8a168ccac994ef2f6927c52b71f",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/HealthChannelCompatibility.test.tsx",
+      "line": 215,
+      "rule": "credential-literal",
+      "line_sha256": "98ef7b3f0e84a6f101c5397a2fcea2485a435a95ed7ca20aff313c6332a02a57",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 24,
+      "rule": "credential-literal",
+      "line_sha256": "d9599b1a50494bc05659df14afaf96408ec2c59bd43fb76b5bd1be081c9cbd77",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 28,
+      "rule": "credential-literal",
+      "line_sha256": "6ab7445c4db77a8c59a904750479cea5aad335f11656880ad124413067887592",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 34,
+      "rule": "credential-literal",
+      "line_sha256": "a004e8f8f3d846c0cb1b827079bdf1322d9efc832582c51dbea77974f7e98659",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 38,
+      "rule": "credential-literal",
+      "line_sha256": "581b87b4b191c6590b57d99a71c49a01d2a1fecb7e3e6e82bb354efdc6d0fa39",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 43,
+      "rule": "credential-literal",
+      "line_sha256": "36be996e4c826415d58b94062d5f09c7c5b6d9e7b12c6015f70e41def44fcedb",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 52,
+      "rule": "credential-literal",
+      "line_sha256": "0b213a48249f53741f650b7a1445f26258d4245f96c4c84183ee028bfead5eb2",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "src/lib/channelIdentity.test.ts",
+      "line": 110,
+      "rule": "credential-literal",
+      "line_sha256": "df920d5de58378a34c46e6a468aac98ddc895f6d238b41ee37656482dcd8fb43",
+      "classification": "Reviewed synthetic test fixture only; matched literals use enumerated test-only prefixes and exact path/line SHA is pinned"
+    },
+    {
+      "file": "scripts/test_prepare_health_release.py",
+      "line": 51,
+      "rule": "personal-windows-profile-path",
+      "line_sha256": "b3eff5754388b4cc33d8205523a4e6ef4ac0d3bf34b70ecb11c27f52d7e0f936",
+      "classification": "Privacy-scanner self-test only: explicitly synthetic FixturePerson path, never read or accessed"
+    },
+    {
+      "file": "scripts/test_activate_health_schedule.py",
+      "line": 53,
+      "rule": "credential-literal",
+      "line_sha256": "b6489d25f8331853bb08ab5605aff72de66306ddda51cded38bd749371e892c0",
+      "classification": "Reviewed synthetic offline get_settings stub created only in owned test tmp_path for the isolated TaskProbe contract; no real credential. Exact source line SHA, no file-wide waiver."
+    },
+    {
+      "file": "scripts/health-channel-e2e.mjs",
+      "line": 424,
+      "rule": "credential-literal",
+      "line_sha256": "2a0f7c430f12176d2c035a6f92ad3b5c4963ed72fdace287fc5e46b388d4c9da",
+      "classification": "Reviewed own isolated loopback preview login refresh fixture only; synthetic account/password cannot access any real account; exact file/line SHA only"
+    }
+  ]
+}

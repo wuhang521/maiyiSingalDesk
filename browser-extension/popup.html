@@ -1,0 +1,8 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>我的知识库</title><link rel="stylesheet" href="popup.css"></head><body>
+<h1>保存到我的知识库</h1><p>只处理你主动打开的微信页面。不后台读取历史或其他标签页，付费识别另行同意。</p>
+<form id="login"><label>你的后台地址<input id="backend" type="url" required placeholder="https://你的后台域名"></label><label>个人账号<input id="username" required maxlength="80" autocomplete="username"></label><label>密码<input id="password" type="password" required autocomplete="current-password"></label><label class="check"><input id="insecure" type="checkbox">我了解远程 HTTP 会暴露登录凭据和资料，建议先配置 HTTPS</label><button type="submit">登录本人后台</button></form>
+<section id="capture" hidden><p id="identity"></p><button id="logout" type="button">退出账号</button><button id="preview" type="button">预览当前微信页面</button>
+<label>标题<input id="title" maxlength="300"></label><label>来源<input id="source" readonly></label><label>发布者<input id="publisher" maxlength="200"></label><label>可见正文（可修订）<textarea id="content" rows="10" maxlength="1000000"></textarea></label>
+<label class="check"><input id="consent" type="checkbox">我有权保存，确认发送以上正文与来源到本人后台</label><button id="save" type="button" disabled>保存正文 / 链接</button>
+<p id="media-status">视频原件：未发现可下载地址</p><label class="check"><input id="media-consent" type="checkbox">我有权保存当前视频，确认上传原件到本人后台（最多 25 MB）</label><button id="media" type="button" disabled>获取可访问的视频原件并保存</button>
+<p>blob、加密、分片或验证页面无法获取。请合法保存原件后在客户端上传。保持弹窗打开；未确认的请求不自动重试。</p></section><p id="status" role="status" aria-live="polite"></p><script src="popup.js"></script></body></html>

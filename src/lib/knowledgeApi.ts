@@ -22,7 +22,7 @@ export interface KnowledgeUsage {
   daily_submissions: number; monthly_submissions: number; daily_limit: number; monthly_limit: number;
   daily_remaining: number; monthly_remaining: number; next_daily_reset: string; timezone: string; accounting: string;
 }
-export interface KnowledgeCapabilities { media_merge_available?: boolean; semantic_max_chunks?: number; costs_available?: boolean; silk_available?: boolean }
+export interface KnowledgeCapabilities { media_merge_available?: boolean; semantic_max_chunks?: number; semantic_provider?: string; costs_available?: boolean; silk_available?: boolean }
 export interface KnowledgeCosts { enabled: boolean; daily_exposure_cny: string; monthly_exposure_cny: string; daily_limit_cny: string; monthly_limit_cny: string; daily_unpriced: number; monthly_unpriced: number; request_ceiling_cny: Record<string, string> }
 export interface KnowledgeCostRow { usage_id: string; operation: string; reserved_cny: string | null; actual_cny: string | null; state: string; owner_id?: number; created_at: string; provider_requests?: { provider: string; request_id: string; response_id: string; http_status: number; usage: Record<string, number>; created_at: string }[] }
 export interface KnowledgeOperations {

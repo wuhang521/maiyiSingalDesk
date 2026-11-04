@@ -21,6 +21,12 @@ export interface SmartChannel {
   updatedAt: number;
   lastSyncAt?: number;
   isDemo?: boolean;
+  aliases?: string[];
+  managed?: boolean;
+  readViaApi?: boolean;
+  // Local credentials stay bound to the connection for which they were saved.
+  authTokenServer?: string;
+  authTokenTopic?: string;
 }
 
 export interface FeedItem {

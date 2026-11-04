@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Hermes · 保存到我的知识库",
+  "version": "0.1.0",
+  "description": "主动预览并保存微信正文或获准保存的视频原件，不后台采集。",
+  "minimum_chrome_version": "120",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "action": { "default_popup": "popup.html", "default_title": "保存到我的知识库" }
+}

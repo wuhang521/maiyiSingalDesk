@@ -3,9 +3,10 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { enhancedKnowledgeChecks } from "./knowledge-enhanced-e2e.mjs";
 
 const root = process.cwd();
-const artifacts = path.join(root, "artifacts", process.env.SIGNALDESK_PACKAGE_DIR ? "knowledge-ocr-package" : "knowledge-ocr");
+const artifacts = process.env.KNOWLEDGE_E2E_ARTIFACTS || path.join(root, "artifacts", process.env.SIGNALDESK_PACKAGE_DIR ? "knowledge-ocr-package" : "knowledge-ocr");
 await mkdir(artifacts, { recursive: true });
 const run = await mkdtemp(path.join(artifacts, "run-"));
 const server = createServer();
@@ -26,7 +27,9 @@ const errors = [], outgoing = [];
 const detail = () => page.getByRole("article", { name: "知识资料详情" });
 const screenshotSizes = [[1440, 920, "desktop"], [1080, 700, "compact"], [2178, 1401, "user-2178"]];
 async function capture(name) {
-  if (!name.startsWith("ocr-")) return;
+  if (!name.startsWith("ocr-" ) && !name.startsWith("enhanced-")) return;
+  await app.evaluate(({ BrowserWindow }) => { for (const window of BrowserWindow.getAllWindows()) { window.show(); window.focus(); } });
+  await page.bringToFront();
   for (const [width, height, size] of screenshotSizes) {
     await page.setViewportSize({ width, height });
     await page.evaluate(() => { for (const panel of document.querySelectorAll(".kb-collect,.kb-ask,.kb-detail,.kb-list")) panel.scrollTop = 0; });
@@ -229,8 +232,9 @@ try {
   await expect(consent).not.toBeChecked();
   await capture("ocr-error");
   expect((await (await fetch(`${base}/preview-ocr/calls`)).json()).calls).toBe(2);
+  const enhanced = process.env.KNOWLEDGE_ENHANCED_E2E === "true" ? await enhancedKnowledgeChecks({ app, page, base, run, capture }) : [];
   expect(errors).toEqual([]); expect(outgoing).toEqual([]);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, backend: "isolated SQLite + real parser worker + mock cloud HTTP transport (not real model)", packaged: !!process.env.SIGNALDESK_PACKAGE_DIR, sizes: screenshotSizes, checks: ["collection", "revision", "historical body comparison", "cited extractive answer", "delete/restore", "permanent delete confirmation and cancel", "real original file cleanup", "real subtitle parser", "private download", "ASR unconfigured state", "keyword filter", "cloud unconfigured", "explicit opt-in and disclosure", "mock cloud synthesis", "mock cloud failure without retry", "offline excerpt recovery", "no external HTTP", "no renderer errors"] }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, enhanced, provider_media_simulation: !!enhanced.length, backend: "isolated SQLite + real parser worker + mock cloud HTTP transport (not real model)", packaged: !!process.env.SIGNALDESK_PACKAGE_DIR, sizes: screenshotSizes, checks: ["collection", "revision", "historical body comparison", "cited extractive answer", "delete/restore", "permanent delete confirmation and cancel", "real original file cleanup", "real subtitle parser", "private download", "ASR unconfigured state", "keyword filter", "cloud unconfigured", "explicit opt-in and disclosure", "mock cloud synthesis", "mock cloud failure without retry", "offline excerpt recovery", "no external HTTP", "no renderer errors"] }, null, 2));
   console.log("知识库 Electron E2E 通过：既有功能回归 + 模拟 OCR 授权、待核对隔离、确认入库、页码引用及失败不重复识别；三种桌面尺寸。");
 } catch (error) {
   await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: false, packaged: !!process.env.SIGNALDESK_PACKAGE_DIR, sizes: screenshotSizes }, null, 2));

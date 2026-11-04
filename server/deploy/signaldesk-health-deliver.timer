@@ -1,0 +1,14 @@
+[Unit]
+Description=Deliver health news at 09:00 Shanghai time and reconcile late preparations
+
+[Timer]
+# systemd 219 calendar syntax uses the host timezone.
+# Deployment requires server timezone: Asia/Shanghai, with synchronized NTP.
+OnCalendar=*-*-* 09:00:00
+OnUnitInactiveSec=2min
+Persistent=true
+AccuracySec=1s
+Unit=signaldesk-health-deliver.service
+
+[Install]
+WantedBy=timers.target

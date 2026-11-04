@@ -34,7 +34,7 @@ export function KnowledgeSemantic({ settings, item, caps, busy, onChange }: {
   const disabled = busy || item.status !== "ready" || !caps.semantic_enabled || item.content.length > 24000 || info?.state === "ready" || info?.state === "processing";
   return <section className="kb-ocr" aria-label="本资料语义索引">
     <h3>语义索引 · 按意思找原文</h3>
-    <p id="kb-semantic-disclosure">只在你同意后，把本资料当前正文发送到火山方舟文本向量模型，可能产生费用；不发送整库和原文件。
+    <p id="kb-semantic-disclosure">只在你同意后，把本资料当前正文发送到{caps.semantic_provider || "后台配置的文本向量服务"}，可能产生费用；不发送整库和原文件。
       单份最多 24000 字符 / 40 个片段，本人最多 {caps.semantic_max_chunks ?? 500} 个片段。结果仅用于相似原文检索，不生成结论。修订正文会清除本索引，不自动重建。</p>
     {!caps.semantic_enabled && <p>后台尚未启用或缺少专用向量模型配置；仍可用关键词查找原文。</p>}
     {info && <p>当前正文版本 {info.source_revision}：{labels[info.state] || info.state}{info.state === "ready" && ` · ${info.chunk_count} 个片段`}。

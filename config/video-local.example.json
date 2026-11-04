@@ -1,0 +1,21 @@
+{
+  "prompt_base_url": "https://ark.cn-beijing.volces.com/api/v3",
+  "prompt_model": "",
+  "prompt_api_key": "",
+  "seedance_api_key": "",
+  "seedance_base_url": "https://ark.cn-beijing.volces.com/api/v3",
+  "seedance_model": "doubao-seedance-2-0-mini-260615",
+  "TASK_VIDEO_PAID_ENABLED": "0",
+  "TASK_VIDEO_PRICING_PROFILE": "official-cn-20261022",
+  "TASK_VIDEO_SCENE_PROVIDER": "seedance",
+  "TASK_VIDEO_COST_REVIEW_REQUIRED": "0",
+  "TASK_VIDEO_PYTHON": "",
+  "TASK_VIDEO_FFMPEG": "",
+  "BL_KEY_FILE": "",
+  "RH_KEY_FILE": "",
+  "TASK_VIDEO_VOICE_COST_PER_1000_CHARS": "",
+  "TASK_VIDEO_SCENE_COST_PER_SECOND": "",
+  "TASK_VIDEO_AVATAR_COST_PER_SECOND": "",
+  "TASK_VIDEO_RUNNINGHUB_KEY_TYPE": "",
+  "TASK_VIDEO_AVATAR_CURRENCY": ""
+}

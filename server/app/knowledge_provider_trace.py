@@ -20,7 +20,7 @@ def identifier(value):
 
 def record(provider, response, payload=None):
     scope = _span.get()
-    if scope is None or provider not in {"ark", "deepseek", "volc_asr"}: return
+    if scope is None or provider not in {"ark", "deepseek", "volc_asr", "qwen"}: return
     usage_id, factory = scope
     request_id = next((identifier(response.headers.get(key)) for key in ("X-Request-ID", "X-Tt-Logid", "X-Api-Request-Id") if identifier(response.headers.get(key))), "")
     response_id = identifier(payload.get("id")) if isinstance(payload, dict) else ""

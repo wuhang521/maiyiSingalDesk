@@ -164,7 +164,9 @@ describe("迈医协同 app", () => {
     try {
       render(<App />);
       await user.click(screen.getByRole("button", { name: "知识库" }));
-      await user.click(await screen.findByRole("button", { name: "收集资料" }));
+      // This scenario tests navigation protection after the lazily imported
+      // workspace is ready; source transformation can exceed the 1s DOM default.
+      await user.click(await screen.findByRole("button", { name: "收集资料" }, { timeout: 10000 }));
       await user.type(screen.getByLabelText("正文 / 转写文字（选填）"), "尚未保存的知识资料正文");
       await user.click(screen.getByRole("button", { name: "知识库" }));
       expect(confirm).not.toHaveBeenCalled();
@@ -183,7 +185,7 @@ describe("迈医协同 app", () => {
     } finally {
       confirm.mockRestore(); capabilities.mockRestore(); items.mockRestore();
     }
-  });
+  }, 15000);
 
   it("opens the desktop task widget and enables login startup", async () => {
     const user = userEvent.setup();
