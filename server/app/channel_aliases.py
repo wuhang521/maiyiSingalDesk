@@ -21,6 +21,13 @@ class SmartChannelAlias(Base):
     canonical_id: Mapped[str] = mapped_column(String(80), index=True)
 
 
+def active_channel_catalog():
+    return select(SmartChannel).where(
+        SmartChannel.archived_at.is_(None),
+        ~select(SmartChannelAlias.alias_id).where(SmartChannelAlias.alias_id == SmartChannel.id).exists(),
+    ).order_by(SmartChannel.display_order.is_(None), SmartChannel.display_order, SmartChannel.name, SmartChannel.id)
+
+
 def resolve_channel_id(db: Session, channel_id: str) -> str:
     alias = db.get(SmartChannelAlias, channel_id)
     if alias is None:

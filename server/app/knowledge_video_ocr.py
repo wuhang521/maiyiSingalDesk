@@ -62,7 +62,7 @@ def frames(path, filename, directory):
 
 def recognize(path, filename, may_send, *, frame_extractor=frames, image_recognizer=knowledge_ocr.recognize):
     if not configuration():
-        raise knowledge_ocr.OcrError("视频画面 OCR 尚未启用、缺少 OCR 凭据或转换工具；原件已保留。")
+        raise knowledge_ocr.OcrError("视频画面 OCR 尚未启用、服务地址无效或缺少转换工具；原件已保留。")
     with tempfile.TemporaryDirectory(prefix='signaldesk-video-ocr-') as directory:
         samples=frame_extractor(path,filename,Path(directory))
         deadline=time.monotonic()+600

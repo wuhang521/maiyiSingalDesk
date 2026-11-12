@@ -31,7 +31,8 @@ function fixture(t, options = {}) {
       observed.upstream += 1;
       assert.equal(init.headers.Authorization, "Bearer " + session.accessToken);
       if (options.rejectIdentity) return { ok: false, status: 401 };
-      return { ok: true, text: async () => JSON.stringify({ id: 7, username: "real-user", display_name: "真实用户" }) };
+      return { ok: true, text: async () => JSON.stringify({ id: 7, username: "real-user", display_name: "真实用户",
+        role: "member", allowed_pages: options.allowedPages }) };
     }
     const envelope = observed.envelopes.at(-1);
     assert.ok(!init.headers.Authorization.includes("upstream-test-token"));
@@ -96,6 +97,18 @@ test("upstream disabled identity cannot obtain video access", async t => {
   const f = fixture(t, { rejectIdentity: true });
   await assert.rejects(f.bridge.connection(f.request()), /失效或停用/);
   assert.equal(f.observed.children.length, 0);
+});
+test("a member whose content page is disabled cannot launch or renew local video access", async t => {
+  const options = { allowedPages: ["tasks"] };
+  const f = fixture(t, options);
+  await assert.rejects(f.bridge.connection(f.request()), /内容生成的权限/);
+  assert.equal(f.observed.children.length, 0);
+  options.allowedPages = ["content"];
+  await f.bridge.connection(f.request());
+  options.allowedPages = [];
+  f.advance(61000);
+  await assert.rejects(f.bridge.connection(f.request()), /内容生成的权限/);
+  assert.equal(f.observed.leases, 0);
 });
 test("concurrent requests verify once and launch one purpose-bound service", async t => {
   const f = fixture(t);

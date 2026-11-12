@@ -1,4 +1,4 @@
-import type { AuthSession, AuthUser } from "../types";
+import type { AuthSession, AuthUser, DesktopPage } from "../types";
 
 interface ServerUser {
   id: number;
@@ -6,6 +6,7 @@ interface ServerUser {
   display_name: string;
   staff_id: number;
   role: "admin" | "member";
+  allowed_pages?: DesktopPage[] | null;
 }
 
 interface LoginResponse {
@@ -25,6 +26,7 @@ function userFromServer(user: ServerUser): AuthUser {
     displayName: user.display_name,
     staffId: user.staff_id,
     role: user.role,
+    ...(user.allowed_pages !== undefined ? { allowedPages: user.allowed_pages } : {}),
   };
 }
 
@@ -37,7 +39,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     } catch {
       // 保留 HTTP 状态作为错误信息。
     }
-    throw new Error(detail);
+    throw Object.assign(new Error(detail), { status: response.status });
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -59,7 +61,7 @@ export const authApi = {
     };
   },
 
-  async me(session: AuthSession): Promise<AuthUser> {
+  async me(session: Pick<AuthSession, "backendUrl" | "accessToken">): Promise<AuthUser> {
     const response = await fetch(endpoint(session.backendUrl, "/api/v1/auth/me"), {
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });

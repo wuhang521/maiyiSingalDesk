@@ -223,6 +223,8 @@ def test_reopening_same_real_identity_retains_video_data_without_trial_user(desk
     with Session(app.state.engine) as db:
         db.add(VideoProject(id="offline-retained-project", owner_id=47, topic="retained", mode="standard", platforms=[]))
         db.commit()
+    with app.state.engine.begin() as connection:
+        connection.exec_driver_sql("ALTER TABLE user_account DROP COLUMN allowed_pages")
     reopened = create_app(value, capabilities=lambda: {})
     with Session(reopened.state.engine) as db:
         assert db.get(VideoProject, "offline-retained-project").owner_id == 47

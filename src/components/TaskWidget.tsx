@@ -12,15 +12,18 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { defaultSettings } from "../data/demo";
+import { authApi } from "../lib/authApi";
+import { canAccessDesktopPage } from "../lib/pageAccess";
 import { storage } from "../lib/storage";
 import { taskApi } from "../lib/taskApi";
-import type { AppSettings, AuthSession, TaskItem } from "../types";
+import type { AppSettings, AuthSession, AuthUser, TaskItem } from "../types";
 
 type WidgetFilter = "mine" | "all";
 
 export function TaskWidget() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
+  const [verifiedUser, setVerifiedUser] = useState<AuthUser | null>(null);
   const [filter, setFilter] = useState<WidgetFilter>("mine");
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [title, setTitle] = useState("");
@@ -33,32 +36,53 @@ export function TaskWidget() {
   const [error, setError] = useState("");
   const mounted = useRef(true);
   const addedTaskTimer = useRef<number | null>(null);
+  const requestSequence = useRef(0);
 
   const configured = Boolean(settings?.backendUrl.trim() && settings.backendAuthToken.trim());
-  const currentStaffId = authSession?.user.staffId;
+  const currentStaffId = verifiedUser?.staffId;
+  const canViewTeam = verifiedUser?.role === "admin";
+  const activeFilter = canViewTeam ? filter : "mine";
+  const visibleTasks = activeFilter === "all" ? tasks : tasks.filter((task) => task.assignee_id === currentStaffId);
 
   const load = useCallback(async () => {
     if (!mounted.current) return;
-    if (!configured || !settings || !currentStaffId) {
+    if (!configured || !settings || !authSession) {
       setError("请先登录迈医协同主程序");
       return;
     }
+    const sequence = ++requestSequence.current;
+    const isCurrent = () => mounted.current && sequence === requestSequence.current;
     setLoading(true);
     setError("");
     try {
+      const user = await authApi.me(authSession);
+      if (!isCurrent()) return;
+      if (!user.staffId || !canAccessDesktopPage(user, "tasks")) {
+        setVerifiedUser(null);
+        setTasks([]);
+        setError("当前账号无权访问任务中心");
+        return;
+      }
+      setVerifiedUser(user);
+      const assigneeId = user.role === "admin" && filter === "all" ? undefined : user.staffId;
       const result = await taskApi.listTasks(
         settings,
         "active",
         "",
-        filter === "mine" ? currentStaffId : undefined,
+        assigneeId,
       );
-      if (mounted.current) setTasks(selectWidgetTasks(result.items));
+      if (isCurrent()) setTasks(selectWidgetTasks(assigneeId === undefined
+        ? result.items : result.items.filter((task) => task.assignee_id === assigneeId)));
     } catch (caught) {
-      if (mounted.current) setError(errorMessage(caught));
+      if (isCurrent()) {
+        setVerifiedUser(null);
+        setTasks([]);
+        setError(errorMessage(caught));
+      }
     } finally {
-      if (mounted.current) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [configured, currentStaffId, filter, settings]);
+  }, [authSession, configured, filter, settings]);
 
   useEffect(() => {
     mounted.current = true;
@@ -111,11 +135,12 @@ export function TaskWidget() {
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refreshOnFocus);
+      requestSequence.current++;
     };
   }, [load, settings]);
 
   async function completeTask(taskId: number) {
-    if (!settings) return;
+    if (!settings || !currentStaffId || !visibleTasks.some((task) => task.id === taskId && task.assignee_id === currentStaffId)) return;
     setCompletingTaskId(taskId);
     try {
       await taskApi.action(settings, taskId, "complete");
@@ -180,9 +205,9 @@ export function TaskWidget() {
     <section className={`task-widget${locked ? " locked" : ""}${collapsed ? " collapsed" : ""}`}>
       <header className="task-widget-header">
         <div>
-          <strong>{filter === "mine" ? "我的待办" : "团队待办"}</strong>
+          <strong>{activeFilter === "mine" ? "我的待办" : "团队待办"}</strong>
           <span>
-            {tasks.length} 项未完成 · {filter === "mine" ? settings?.operatorName || "我的任务" : "全部人员"}
+            {visibleTasks.length} 项未完成 · {activeFilter === "mine" ? verifiedUser?.displayName || "我的任务" : "全部人员"}
           </span>
         </div>
         <nav aria-label="桌面挂件操作">
@@ -197,23 +222,23 @@ export function TaskWidget() {
               >
                 <RefreshCw size={16} className={loading ? "spin" : ""} />
               </button>
-              <button
+              {verifiedUser && <button
                 type="button"
                 title="打开任务中心"
                 aria-label="打开任务中心"
                 onClick={() => window.signalDesk?.openTaskWorkspace()}
               >
                 <Expand size={16} />
-              </button>
-              <button
-                className={filter === "all" ? "active" : ""}
+              </button>}
+              {canViewTeam && <button
+                className={activeFilter === "all" ? "active" : ""}
                 type="button"
-                title={filter === "mine" ? "显示全部人员" : "只显示我的任务"}
-                aria-label={filter === "mine" ? "显示全部人员" : "只显示我的任务"}
+                title={activeFilter === "mine" ? "显示全部人员" : "只显示我的任务"}
+                aria-label={activeFilter === "mine" ? "显示全部人员" : "只显示我的任务"}
                 onClick={() => setFilter((current) => current === "mine" ? "all" : "mine")}
               >
                 <Filter size={16} />
-              </button>
+              </button>}
               <button
                 className={locked ? "active" : ""}
                 type="button"
@@ -246,10 +271,10 @@ export function TaskWidget() {
 
       <div className="task-widget-list" aria-live="polite" aria-busy={loading}>
         {error && <div className="task-widget-message error">{error}</div>}
-        {!error && !loading && tasks.length === 0 && (
+        {!error && !loading && visibleTasks.length === 0 && (
           <div className="task-widget-message">当前没有未完成任务</div>
         )}
-        {tasks.map((task) => {
+        {visibleTasks.map((task) => {
           const overdue = isOverdue(task);
           return (
             <article
@@ -275,7 +300,7 @@ export function TaskWidget() {
                 onClick={() => window.signalDesk?.openTaskWorkspace()}
               >
                 <strong>{task.title}</strong>
-                {filter === "all" && <span>{task.assignee_name}</span>}
+                {activeFilter === "all" && <span>{task.assignee_name}</span>}
               </button>
               <time
                 className={`${task.due_at ? "dated" : ""}${overdue ? " overdue" : ""}${!task.due_at && task.priority === 3 ? " urgent" : ""}`}

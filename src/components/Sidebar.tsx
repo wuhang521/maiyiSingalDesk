@@ -1,14 +1,19 @@
+import { Fragment } from "react";
 import {
   Archive,
   Bookmark,
   BookOpen,
   CalendarDays,
+  Building2,
+  ExternalLink,
   Inbox,
   RadioTower,
   Settings,
   ListChecks,
+  LogOut,
   MonitorUp,
   Trash2,
+  Users,
   WandSparkles,
 } from "lucide-react";
 import mayiLogo from "../assets/mayi-logo.webp";
@@ -24,6 +29,8 @@ interface SidebarProps {
   onViewChange: (view: ViewKey) => void;
   onChannelSelect: (channelId: string) => void;
   onToggleTaskWidget: () => void;
+  canAccess?: (page: ViewKey | "internal") => boolean;
+  onLogout?: () => void;
 }
 
 const navigation: Array<{
@@ -35,6 +42,7 @@ const navigation: Array<{
   { id: "inbox", label: "全部信息", icon: Inbox },
   { id: "channels", label: "智能频道", icon: RadioTower },
   { id: "tasks", label: "任务中心", icon: ListChecks },
+  { id: "members", label: "用户管理", icon: Users },
   { id: "knowledge", label: "知识库", icon: BookOpen },
   { id: "content", label: "内容生成", icon: WandSparkles },
   { id: "saved", label: "收藏", icon: Bookmark },
@@ -51,6 +59,8 @@ export function Sidebar({
   onViewChange,
   onChannelSelect,
   onToggleTaskWidget,
+  canAccess = (page) => page !== "members",
+  onLogout,
 }: SidebarProps) {
   const connected = channels.filter(
     (channel) => statuses[channel.id]?.status === "connected",
@@ -79,24 +89,39 @@ export function Sidebar({
                 ? trashCount
                 : 0;
           return (
-            <button
-              className={`nav-button ${activeView === item.id ? "active" : ""}`}
-              key={item.id}
-              onClick={() => onViewChange(item.id)}
-              type="button"
-            >
-              <Icon size={17} />
-              <span>{item.label}</span>
-              {count > 0 && <span className="nav-count">{count}</span>}
-            </button>
+            <Fragment key={item.id}>
+              {canAccess(item.id) && <button
+                className={`nav-button ${activeView === item.id ? "active" : ""}`}
+                aria-current={activeView === item.id ? "page" : undefined}
+                onClick={() => onViewChange(item.id)}
+                type="button"
+              >
+                <Icon size={17} />
+                <span>{item.label}</span>
+                {count > 0 && <span className="nav-count">{count}</span>}
+              </button>}
+              {item.id === "members" && canAccess("internal") && (
+                <a
+                  className="nav-button external-nav-link"
+                  href="https://maiyitechmed.com/travel/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="在浏览器中打开迈医内部管理系统"
+                >
+                  <Building2 size={17} aria-hidden="true" />
+                  <span>内部管理系统</span>
+                  <ExternalLink size={13} className="external-nav-icon" aria-hidden="true" />
+                </a>
+              )}
+            </Fragment>
           );
         })}
       </nav>
 
-      <div className="sidebar-section">
+      {(canAccess("channels") || canAccess("inbox")) && <div className="sidebar-section">
         <div className="section-label-row">
           <span className="section-label">频道</span>
-          <button
+          {canAccess("channels") && <button
             className="icon-button subtle"
             type="button"
             title="管理频道"
@@ -104,10 +129,10 @@ export function Sidebar({
             onClick={() => onViewChange("channels")}
           >
             <Archive size={14} />
-          </button>
+          </button>}
         </div>
         <div className="channel-shortcuts">
-          {channels.map((channel) => (
+          {canAccess("inbox") && channels.map((channel) => (
             <button
               className="channel-shortcut"
               key={channel.id}
@@ -120,28 +145,31 @@ export function Sidebar({
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className="sidebar-footer">
-        <div className="connection-summary">
+        {(canAccess("channels") || canAccess("inbox")) && <div className="connection-summary">
           <span className={`connection-light ${connected > 0 ? "online" : "idle"}`} />
           <div>
             <strong>{connected > 0 ? `${connected} 个频道在线` : "等待连接频道"}</strong>
             <span>ntfy 实时通道</span>
           </div>
-        </div>
-        <button className="nav-button" type="button" onClick={onToggleTaskWidget}>
+        </div>}
+        {canAccess("tasks") && <button className="nav-button" type="button" onClick={onToggleTaskWidget}>
           <MonitorUp size={17} />
           <span>桌面挂件</span>
-        </button>
-        <button
+        </button>}
+        {canAccess("settings") ? <button
           className={`nav-button ${activeView === "settings" ? "active" : ""}`}
           type="button"
           onClick={() => onViewChange("settings")}
         >
           <Settings size={17} />
           <span>设置</span>
-        </button>
+        </button> : onLogout && <button className="nav-button" type="button" onClick={onLogout}>
+          <LogOut size={17} />
+          <span>退出登录</span>
+        </button>}
       </div>
     </aside>
   );

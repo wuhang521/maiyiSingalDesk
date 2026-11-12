@@ -43,6 +43,7 @@ class UserAccount(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     staff_id: Mapped[int] = mapped_column(ForeignKey("staff.id"), unique=True, index=True)
     role: Mapped[str] = mapped_column(String(20), default="member")
+    allowed_pages: Mapped[list[str] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime6, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime6, default=utcnow)
@@ -172,6 +173,9 @@ class SmartChannel(Base):
     exclude_terms: Mapped[list[str]] = mapped_column(JSON, default=list)
     color: Mapped[str] = mapped_column(String(20), default="green")
     state: Mapped[str] = mapped_column(String(20), default="draft")
+    display_order: Mapped[int | None]
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime6)
+    subscription_user_ids: Mapped[list[int] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime6, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime6, default=utcnow, onupdate=utcnow)
 
@@ -189,6 +193,7 @@ class Article(Base):
     priority: Mapped[int] = mapped_column(Integer, default=3)
     published_at: Mapped[datetime] = mapped_column(DateTime6, index=True)
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    channel_push_trusted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime6, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime6, default=utcnow, onupdate=utcnow)
 

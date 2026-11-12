@@ -1,4 +1,5 @@
-export type ViewKey = "today" | "inbox" | "channels" | "tasks" | "knowledge" | "content" | "saved" | "trash" | "settings";
+export type ViewKey = "today" | "inbox" | "channels" | "tasks" | "members" | "knowledge" | "content" | "saved" | "trash" | "settings";
+export type DesktopPage = Exclude<ViewKey, "members"> | "internal";
 export type ChannelColor = "green" | "blue" | "amber" | "rose" | "slate";
 export type ChannelState = "active" | "paused" | "draft" | "error";
 export type FeedbackValue = "useful" | "not-useful" | null;
@@ -71,6 +72,7 @@ export interface AuthUser {
   displayName: string;
   staffId: number;
   role: "admin" | "member";
+  allowedPages?: DesktopPage[] | null;
 }
 
 export interface AuthSession {

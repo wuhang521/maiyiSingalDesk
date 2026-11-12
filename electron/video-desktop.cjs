@@ -86,6 +86,10 @@ module.exports = function createDesktopVideo({ app, net, readSession, runtimeRoo
     try { user = JSON.parse(body); } catch { throw new Error("账号验证返回异常"); }
     if (!Number.isSafeInteger(user.id) || user.id < 1 || typeof user.username !== "string" || !user.username.trim() ||
         typeof user.display_name !== "string" || user.username.length > 80 || user.display_name.length > 80) throw new Error("账号验证返回的身份不完整");
+    if (user.role !== "admin" && user.allowed_pages != null &&
+        (!Array.isArray(user.allowed_pages) || !user.allowed_pages.includes("content"))) {
+      throw new Error("当前账号没有访问内容生成的权限");
+    }
     return { backend_url: backend, id: user.id, username: user.username, display_name: user.display_name };
   }
 

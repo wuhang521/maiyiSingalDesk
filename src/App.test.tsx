@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { ChannelDialog } from "./components/ChannelDialog";
 import { defaultSettings } from "./data/demo";
@@ -18,14 +18,19 @@ vi.mock("./lib/authApi", () => ({
 }));
 
 describe("迈医协同 app", () => {
+  const testBackendUrl = "http://127.0.0.1:19998";
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(articleApi, "channelDeliveryCatalog").mockRejectedValue(Object.assign(new Error("旧版后台"), { status: 404 }));
     window.localStorage.clear();
     Object.defineProperty(window, "signalDesk", {
       configurable: true,
       value: undefined,
     });
   });
+
+  afterEach(() => vi.mocked(articleApi.channelDeliveryCatalog).mockRestore());
 
   it("renders the operational workspace on first launch", () => {
     render(<App />);
@@ -41,7 +46,7 @@ describe("迈医协同 app", () => {
   it("uses a personal account instead of asking for backend settings", async () => {
     const user = userEvent.setup();
     const session = {
-      backendUrl: defaultSettings.backendUrl,
+      backendUrl: testBackendUrl,
       accessToken: "personal-token",
       expiresAt: "2026-11-16T08:00:00",
       user: {
@@ -85,7 +90,7 @@ describe("迈医协同 app", () => {
   it("refreshes server articles when the top sync button is clicked", async () => {
     const user = userEvent.setup();
     const session = {
-      backendUrl: defaultSettings.backendUrl,
+      backendUrl: testBackendUrl,
       accessToken: "personal-token",
       expiresAt: "2026-11-16T08:00:00",
       user: {

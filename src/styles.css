@@ -214,6 +214,19 @@ select:focus-visible {
   flex: 0 0 auto;
 }
 
+.external-nav-link {
+  text-decoration: none;
+}
+
+.external-nav-link:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 1px;
+}
+
+.external-nav-link .external-nav-icon {
+  margin-left: auto;
+}
+
 .nav-button span:nth-child(2) {
   overflow: hidden;
   font-size: 13px;
@@ -1157,6 +1170,12 @@ select:focus-visible {
   font-size: 12px;
 }
 
+.channel-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .channel-table-header,
 .channel-table-row {
   display: grid;
@@ -1186,6 +1205,78 @@ select:focus-visible {
 
 .channel-table-row:hover {
   background: #fafbfa;
+}
+
+.channel-table.with-wechat .channel-table-header,
+.channel-table.with-wechat .channel-table-row {
+  grid-template-columns: minmax(190px, 2.5fr) 70px 98px 58px minmax(100px, 1fr) minmax(94px, 1fr) 64px;
+}
+
+.channel-table.with-management .channel-table-header,
+.channel-table.with-management .channel-table-row {
+  grid-template-columns: minmax(190px, 2.5fr) 70px 98px 58px minmax(100px, 1fr) minmax(94px, 1fr) 132px;
+}
+
+.channel-table.with-management .row-actions .icon-button {
+  width: 32px;
+}
+
+.channel-table.with-audience .channel-table-header,
+.channel-table.with-audience .channel-table-row {
+  grid-template-columns: minmax(190px, 2.5fr) 70px 98px 58px minmax(100px, 1fr) minmax(94px, 1fr) 198px;
+}
+
+.channel-audience-button {
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+.channel-audience-button:hover:not(:disabled) {
+  background: var(--green-soft);
+}
+
+.channel-table.with-management .channel-table-header > :last-child {
+  text-align: right;
+  padding-right: 8px;
+}
+
+.channel-row-error {
+  grid-column: 1 / -1;
+  justify-self: end;
+  padding: 0 0 8px;
+}
+
+.channel-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.channel-wechat-cell {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.channel-wechat-cell button {
+  min-width: 68px;
+  justify-content: center;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.channel-action-error {
+  color: #a72c23;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .channel-identity {
@@ -1465,7 +1556,12 @@ select:focus-visible {
   margin-bottom: 16px;
 }
 
-.task-mode-switch,
+.task-toolbar-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .task-view-switch,
 .task-filters > div,
 .task-toolbar-actions,
@@ -1475,13 +1571,6 @@ select:focus-visible {
   gap: 6px;
 }
 
-.task-mode-switch {
-  padding: 3px;
-  background: #e9ece9;
-  border-radius: 7px;
-}
-
-.task-mode-switch button,
 .task-view-switch button,
 .task-filters button {
   display: inline-flex;
@@ -1498,7 +1587,6 @@ select:focus-visible {
   cursor: pointer;
 }
 
-.task-mode-switch button.active,
 .task-view-switch button.active,
 .task-filters button.active {
   color: var(--green-dark);
@@ -2146,6 +2234,149 @@ select:focus-visible {
   background: #fafbfa;
 }
 
+.channel-delivery-dialog {
+  height: auto;
+  grid-template-rows: 56px minmax(0, 1fr) 60px;
+}
+
+.channel-delivery-dialog .dialog-footer {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.channel-audience-dialog {
+  display: block;
+  width: min(510px, calc(100vw - 64px));
+  height: min(540px, calc(100vh - 80px));
+  padding: 0;
+  color: var(--text);
+}
+
+.channel-audience-dialog:not([open]) {
+  display: none;
+}
+
+.channel-audience-dialog::backdrop {
+  background: rgba(19, 22, 20, 0.42);
+}
+
+.channel-audience-dialog > form {
+  display: grid;
+  height: 100%;
+  grid-template-rows: 56px minmax(0, 1fr) 60px;
+}
+
+.channel-audience-name {
+  margin: 0 0 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.channel-audience-options {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.channel-audience-options legend {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.channel-audience-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.channel-audience-options + .channel-audience-note {
+  margin-top: 16px;
+}
+
+.channel-audience-list {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.channel-audience-list > p,
+.channel-audience-member {
+  padding: 9px 12px;
+}
+
+.channel-audience-member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.channel-audience-member + .channel-audience-member {
+  border-top: 1px solid var(--border);
+}
+
+.channel-audience-member:hover {
+  background: var(--surface-soft);
+}
+
+.channel-audience-member input {
+  accent-color: var(--green);
+}
+
+.channel-audience-member span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+
+.channel-audience-member small {
+  color: var(--muted);
+}
+
+.channel-audience-error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.channel-delivery-fields {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.channel-delivery-fields .field-group > span:first-child,
+.channel-delivery-check {
+  font-size: 12px;
+}
+
+.channel-delivery-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+}
+
+.channel-delivery-check input {
+  accent-color: var(--green);
+}
+
+.channel-field-note {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .prompt-intro {
   display: flex;
   align-items: flex-start;
@@ -2416,6 +2647,33 @@ select:focus-visible {
   .channel-table-header,
   .channel-table-row {
     grid-template-columns: minmax(220px, 2fr) 96px 92px 58px minmax(110px, 1fr) 120px;
+  }
+
+  .channel-table.with-wechat {
+    overflow-x: auto;
+  }
+
+  .channel-table.with-wechat .channel-table-header,
+  .channel-table.with-wechat .channel-table-row {
+    grid-template-columns: minmax(170px, 2fr) 64px 86px 54px 90px 86px 58px;
+    min-width: 700px;
+    column-gap: 8px;
+  }
+
+  .channel-table.with-management .channel-table-header,
+  .channel-table.with-management .channel-table-row {
+    grid-template-columns: minmax(170px, 2fr) 64px 86px 54px 90px 86px 132px;
+    min-width: 760px;
+  }
+
+  .channel-table.with-audience .channel-table-header,
+  .channel-table.with-audience .channel-table-row {
+    grid-template-columns: minmax(164px, 2fr) 64px 80px 54px 90px 86px 184px;
+    min-width: 802px;
+  }
+
+  .channel-table.with-audience .row-actions .icon-button {
+    width: 28px;
   }
 
   .settings-section {

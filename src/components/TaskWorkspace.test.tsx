@@ -10,6 +10,7 @@ vi.mock("../lib/taskApi", () => ({
   taskApi: {
     listTasks: vi.fn(),
     listStaff: vi.fn(),
+    createTask: vi.fn(),
   },
 }));
 
@@ -21,6 +22,7 @@ const tasks: TaskItem[] = [
 
 describe("TaskWorkspace", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(taskApi.listTasks).mockResolvedValue({ items: tasks, total: tasks.length });
     vi.mocked(taskApi.listStaff).mockResolvedValue([
       { id: 1, name: "杰哥", enabled: true, channels: [], created_at: "2026-08-01T00:00:00Z", updated_at: "2026-08-01T00:00:00Z" },
@@ -36,7 +38,7 @@ describe("TaskWorkspace", () => {
       backendAuthToken: "test-token",
     };
 
-    render(<TaskWorkspace settings={settings} searchQuery="" currentStaffId={1} />);
+    render(<TaskWorkspace settings={settings} searchQuery="" currentStaffId={1} isAdmin />);
     expect(screen.queryByRole("button", { name: "用户管理" })).not.toBeInTheDocument();
 
     expect(await screen.findByText("整理客户反馈")).toBeInTheDocument();
@@ -54,9 +56,36 @@ describe("TaskWorkspace", () => {
     expect(screen.getByText(/尚未标注项目的任务统一显示为/)).toBeInTheDocument();
   });
 
-  it("只有管理员显示用户管理入口", () => {
-    render(<TaskWorkspace settings={{ ...defaultSettings, backendAuthToken: "test-token" }} searchQuery="" currentStaffId={1} canManageMembers />);
-    expect(screen.getByRole("button", { name: "用户管理" })).toBeInTheDocument();
+  it("普通成员只查询和展示分配给自己的任务，创建时固定分配给本人", async () => {
+    const user = userEvent.setup();
+    const settings = { ...defaultSettings, backendUrl: "https://task.example.com", backendAuthToken: "test-token" };
+    vi.mocked(taskApi.createTask)
+      .mockRejectedValueOnce(new Error("当前账号无权创建任务"))
+      .mockResolvedValue(tasks[2]);
+    render(<TaskWorkspace settings={settings} searchQuery="" currentStaffId={2} />);
+
+    expect(await screen.findByText("准备运营素材")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "我的任务" })).toBeInTheDocument();
+    expect(screen.queryByText("整理客户反馈")).not.toBeInTheDocument();
+    expect(screen.queryByText("杰哥")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "用户管理" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "按人员" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("负责人筛选")).not.toBeInTheDocument();
+    expect(taskApi.listTasks).toHaveBeenCalledWith(settings, "active", "", 2);
+    expect(taskApi.listStaff).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "按项目" }));
+    expect(screen.queryByRole("heading", { name: "增长项目" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "新建任务" }));
+    expect(screen.queryByLabelText("负责人")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("任务标题"), "自己的新任务");
+    await user.click(screen.getByRole("button", { name: "保存任务" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("当前账号无权创建任务");
+    expect(screen.getByLabelText("任务标题")).toHaveValue("自己的新任务");
+    await user.click(screen.getByRole("button", { name: "保存任务" }));
+    await waitFor(() => expect(screen.queryByLabelText("任务标题")).not.toBeInTheDocument());
+    expect(taskApi.createTask).toHaveBeenCalledWith(settings, expect.objectContaining({ title: "自己的新任务", assignee_id: 2 }));
+    expect(taskApi.createTask).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -159,7 +159,7 @@ def capabilities(user: UserAccount = Depends(require_user)):
                 teams_available=True, notifications_available=True, media_merge_available=True,
                 semantic_max_chunks=s.knowledge_semantic_max_chunks, costs_available=True,
                 silk_available=silk_configuration(),
-                ocr_provider="豆包 / 火山方舟", ocr_max_pdf_pages=s.knowledge_ocr_max_pdf_pages,
+                ocr_provider="PaddleOCR / 华为云自建服务", ocr_max_pdf_pages=s.knowledge_ocr_max_pdf_pages,
                 max_upload_mb=s.knowledge_max_upload_mb, scope="private", qa_mode="extractive",
                 trash_retention_days=s.knowledge_trash_retention_days,
                 cloud_qa_enabled=cloud_configuration()[0], cloud_provider=cloud_configuration()[1])
@@ -354,14 +354,14 @@ def request_ocr(item_id: str, asset_id: str, payload: OcrRequest,
     if Path(asset.filename).suffix.lower() not in OCR_EXTENSIONS or asset.size > 20 * 1024 * 1024:
         raise HTTPException(422, "请选择不超过 20 MB 的 JPG、PNG 或 PDF 原件。")
     if not ocr_configuration():
-        raise HTTPException(503, "后台尚未启用豆包 OCR；原件已保存，请联系管理员。")
+        raise HTTPException(503, "后台尚未启用 PaddleOCR 或服务地址配置无效；原件已保存，请联系管理员。")
     if db.scalar(select(KnowledgeJob.id).where(KnowledgeJob.item_id == item.id, KnowledgeJob.mode.in_(PAID_RECOGNITION_MODES),
             KnowledgeJob.state.in_(["queued", "running", "retry_wait"]))):
         raise HTTPException(409, "OCR 已提交，不能重复发送。请等待处理完成。")
     item.revision += 1
     job = enqueue(db, item, asset.id, mode="doubao_ocr")
     reserve_paid(db, user.id, job.id, "doubao_ocr")
-    item.status_note = "已明确同意将选中的整份原件发送到豆包云端，等待 OCR；不会自动再次提交付费识别。"
+    item.status_note = "已明确同意将选中的整份原件发送到华为云自建 PaddleOCR，等待识别；不会自动再次提交。"
     db.commit()
     return item_read(item, db, True)
 
@@ -412,13 +412,13 @@ def request_video_ocr(item_id: str, asset_id: str, payload: OcrRequest,
     if Path(asset.filename).suffix.lower() not in VIDEO_EXTENSIONS:
         raise HTTPException(422,"请选择视频原件；音频或分享链接没有可采样画面。")
     if not video_ocr_configuration():
-        raise HTTPException(503,"视频画面 OCR 尚未启用、缺少 OCR 凭据或转换工具")
+        raise HTTPException(503,"视频画面 OCR 尚未启用、服务地址无效或缺少转换工具")
     if db.scalar(select(KnowledgeJob.id).where(KnowledgeJob.item_id==item.id,
         KnowledgeJob.mode.in_(PAID_RECOGNITION_MODES),KnowledgeJob.state.in_(["queued","running","retry_wait"]))):
         raise HTTPException(409,"已有付费识别正在处理，请勿重复提交。")
     item.revision+=1
     job=enqueue(db,item,asset.id,mode="video_ocr"); reserve_paid(db,user.id,job.id,"video_ocr")
-    item.status_note="已同意将采样画面发送豆包 OCR，非完整视频识别；原正文保留在历史，不自动重试。"
+    item.status_note="已同意将采样画面发送华为云自建 PaddleOCR，非完整视频识别；原正文保留在历史，不自动重试。"
     db.commit(); return item_read(item,db,True)
 
 

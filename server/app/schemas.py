@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from .page_access import DesktopPage
 
 
 Platform = Literal["qq", "weixin", "wecom"]
@@ -31,6 +32,7 @@ class UserProfile(BaseModel):
     display_name: str
     staff_id: int
     role: Literal["admin", "member"]
+    allowed_pages: list[DesktopPage] | None = None
 
 
 class LoginResponse(BaseModel):

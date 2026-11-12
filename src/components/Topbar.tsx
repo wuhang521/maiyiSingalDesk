@@ -8,6 +8,8 @@ interface TopbarProps {
   onSearchChange: (query: string) => void;
   onRefresh: () => void;
   onCreateChannel: () => void;
+  canCreateChannel?: boolean;
+  canRefresh?: boolean;
 }
 
 const viewCopy: Record<ViewKey, { title: string; subtitle: string }> = {
@@ -15,6 +17,7 @@ const viewCopy: Record<ViewKey, { title: string; subtitle: string }> = {
   inbox: { title: "全部信息", subtitle: "跨频道检索与阅读" },
   channels: { title: "智能频道", subtitle: "定义长期关注方向和推送规则" },
   tasks: { title: "任务中心", subtitle: "共享任务、负责人和定时提醒" },
+  members: { title: "用户管理", subtitle: "管理人员、登录权限和消息接收渠道" },
   knowledge: { title: "知识库", subtitle: "公众号与视频号素材，保存、检索和追溯来源" },
   content: { title: "内容生成", subtitle: "从账号定位到平台定稿，逐步确认每一期内容" },
   saved: { title: "收藏", subtitle: "留给决策和后续行动的内容" },
@@ -29,6 +32,8 @@ export function Topbar({
   onSearchChange,
   onRefresh,
   onCreateChannel,
+  canCreateChannel = true,
+  canRefresh = true,
 }: TopbarProps) {
   const copy = viewCopy[activeView];
   return (
@@ -37,7 +42,7 @@ export function Topbar({
         <h1>{copy.title}</h1>
         <span>{copy.subtitle}</span>
       </div>
-      <div className="topbar-actions">
+      {activeView !== "members" && <div className="topbar-actions">
         {activeView !== "settings" && activeView !== "channels" && activeView !== "content" && activeView !== "knowledge" && (
           <label className="search-field">
             <Search size={16} aria-hidden="true" />
@@ -50,7 +55,7 @@ export function Topbar({
             <kbd>Ctrl K</kbd>
           </label>
         )}
-        {activeView !== "settings" && activeView !== "tasks" && activeView !== "knowledge" && activeView !== "content" && activeView !== "trash" && (
+        {canRefresh && activeView !== "settings" && activeView !== "tasks" && activeView !== "knowledge" && activeView !== "content" && activeView !== "trash" && (
           <button
             className="icon-button"
             type="button"
@@ -60,7 +65,7 @@ export function Topbar({
             <SlidersHorizontal size={17} />
           </button>
         )}
-        {activeView !== "settings" && activeView !== "tasks" && activeView !== "knowledge" && activeView !== "content" && activeView !== "trash" && (
+        {canRefresh && activeView !== "settings" && activeView !== "tasks" && activeView !== "knowledge" && activeView !== "content" && activeView !== "trash" && (
           <button
             className="icon-button"
             type="button"
@@ -72,13 +77,13 @@ export function Topbar({
             <RefreshCw size={17} className={refreshing ? "spin" : ""} />
           </button>
         )}
-        {activeView !== "tasks" && activeView !== "knowledge" && activeView !== "content" && activeView !== "trash" && (
+        {canCreateChannel && activeView !== "tasks" && activeView !== "knowledge" && activeView !== "content" && activeView !== "trash" && (
           <button className="primary-button" type="button" onClick={onCreateChannel}>
             <Plus size={16} />
             新建频道
           </button>
         )}
-      </div>
+      </div>}
     </header>
   );
 }

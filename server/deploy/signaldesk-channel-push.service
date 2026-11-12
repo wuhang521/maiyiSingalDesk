@@ -1,0 +1,21 @@
+[Unit]
+Description=SignalDesk smart channel collection and personal WeChat subscriptions
+After=network-online.target signaldesk-task-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=signaldesk-task
+Group=signaldesk-task
+WorkingDirectory=/opt/signaldesk-task
+EnvironmentFile=/opt/signaldesk-task/.env
+ExecStart=/opt/signaldesk-task/.venv/bin/python -m app.channel_push_worker
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

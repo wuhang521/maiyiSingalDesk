@@ -4,13 +4,14 @@ import base64
 import hashlib
 import secrets
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from .config import get_settings
 from .database import get_db
 from .models import UserAccount, UserSession, utcnow
+from .page_access import can_access, required_pages
 
 
 SESSION_DAYS = 90
@@ -92,6 +93,7 @@ def require_shared_api_key(x_signaldesk_key: str = Header(default="")) -> None:
 
 
 def require_api_key(
+    request: Request,
     authorization: str = Header(default=""),
     x_signaldesk_key: str = Header(default=""),
     db: Session = Depends(get_db),
@@ -114,6 +116,11 @@ def require_api_key(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录已失效，请重新登录")
     if not session.user.enabled or not session.user.staff.enabled or session.user.staff.removed_at:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号已停用")
+
+    route = request.scope.get("route")
+    pages = required_pages(getattr(route, "path", request.url.path), request.method)
+    if not can_access(session.user.allowed_pages, session.user.role, pages):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="当前账号没有访问该页面的权限")
 
     if session.last_used_at < now - timedelta(days=1):
         session.last_used_at = now

@@ -5,13 +5,14 @@ import json
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from .auth import AuthPrincipal, require_api_key, require_shared_api_key, require_staff_admin
 from .auth_routes import router as auth_router
 from .articles import router as articles_router
+from .channel_subscriptions import router as channel_subscriptions_router
 from .video import router as video_router
 from .video_projects import router as video_projects_router
 from .content import router as content_router
@@ -62,6 +63,7 @@ app.add_middleware(
 )
 app.include_router(auth_router)
 app.include_router(articles_router)
+app.include_router(channel_subscriptions_router)
 app.include_router(video_router)
 app.include_router(video_projects_router)
 app.include_router(content_router)
@@ -83,7 +85,7 @@ async def private_knowledge_responses(request, call_next):
         response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
-secured = [Depends(require_api_key)]
+COMPLETION_FORBIDDEN = "只有任务负责人本人可以完成该任务"
 
 
 def get_staff(db: Session, staff_id: int) -> Staff:
@@ -95,12 +97,48 @@ def get_staff(db: Session, staff_id: int) -> Staff:
     return staff
 
 
-def get_task(db: Session, task_id: int, include_deleted: bool = False) -> Task:
-    query = select(Task).options(selectinload(Task.assignee)).where(Task.id == task_id)
+def member_staff_id(principal: AuthPrincipal) -> int | None:
+    if principal.service:
+        return None
+    if principal.user is None:
+        raise HTTPException(status_code=401, detail="请使用个人账号登录")
+    return None if principal.user.role == "admin" else principal.user.staff_id
+
+
+def task_scope(principal: AuthPrincipal) -> tuple[ColumnElement[bool], ...]:
+    staff_id = member_staff_id(principal)
+    return () if staff_id is None else (Task.assignee_id == staff_id,)
+
+
+def require_task_assignment(principal: AuthPrincipal, assignee_id: int | None) -> None:
+    staff_id = member_staff_id(principal)
+    if staff_id is not None and assignee_id != staff_id:
+        raise HTTPException(status_code=403, detail="成员只能将任务分配给自己")
+
+
+def get_task(
+    db: Session,
+    task_id: int,
+    principal: AuthPrincipal,
+    *,
+    include_deleted: bool = False,
+    for_update: bool = False,
+    completing: bool = False,
+) -> Task:
+    query = (
+        select(Task)
+        .options(selectinload(Task.assignee))
+        .where(Task.id == task_id, *task_scope(principal))
+        .execution_options(populate_existing=True)
+    )
     if not include_deleted:
         query = query.where(Task.deleted_at.is_(None))
+    if for_update:
+        query = query.with_for_update()
     task = db.scalar(query)
-    if not task:
+    if task is None:
+        if completing and member_staff_id(principal) is not None:
+            raise HTTPException(status_code=403, detail=COMPLETION_FORBIDDEN)
         raise HTTPException(status_code=404, detail="任务不存在")
     return task
 
@@ -109,7 +147,7 @@ def completion_operator(principal: AuthPrincipal, assignee_id: int) -> str:
     if principal.user is None or principal.user.staff_id != assignee_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="只有任务负责人本人可以完成该任务",
+            detail=COMPLETION_FORBIDDEN,
         )
     return principal.user.staff.name
 
@@ -173,12 +211,16 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/api/v1/staff", response_model=list[StaffRead], dependencies=secured)
+@app.get("/api/v1/staff", response_model=list[StaffRead])
 def list_staff(
     include_disabled: bool = False,
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> list[Staff]:
     query = select(Staff).options(selectinload(Staff.channels)).where(Staff.removed_at.is_(None)).order_by(Staff.name)
+    staff_id = member_staff_id(principal)
+    if staff_id is not None:
+        query = query.where(Staff.id == staff_id)
     if not include_disabled:
         query = query.where(Staff.enabled.is_(True))
     return list(db.scalars(query).all())
@@ -273,16 +315,17 @@ def delete_staff_channel(
     db.commit()
 
 
-@app.get("/api/v1/tasks", response_model=TaskList, dependencies=secured)
+@app.get("/api/v1/tasks", response_model=TaskList)
 def list_tasks(
     state: str = Query(default="active", pattern="^(active|done|deleted|all)$"),
     assignee_id: int | None = None,
     search: str = "",
     limit: int = Query(default=200, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskList:
-    filters = []
+    filters = list(task_scope(principal))
     if state == "active":
         filters.extend([Task.deleted_at.is_(None), Task.status != "done"])
     elif state == "done":
@@ -316,36 +359,52 @@ def list_tasks(
     )
 
 
+def task_with_source(
+    db: Session,
+    principal: AuthPrincipal,
+    source_platform: str,
+    source_keys: tuple[str, ...],
+) -> Task | None:
+    return db.scalar(
+        select(Task)
+        .options(selectinload(Task.assignee))
+        .where(
+            Task.source_platform == source_platform,
+            Task.source_message_id.in_(source_keys),
+            *task_scope(principal),
+        )
+        .order_by((Task.source_message_id == source_keys[0]).desc())
+    )
+
+
 @app.post(
     "/api/v1/tasks",
     response_model=TaskRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=secured,
 )
-def create_task(payload: TaskCreate, db: Session = Depends(get_db)) -> TaskRead:
+def create_task(
+    payload: TaskCreate,
+    principal: AuthPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+) -> TaskRead:
+    require_task_assignment(principal, payload.assignee_id)
+    staff_id = member_staff_id(principal)
     source_platform = payload.source_platform.strip().lower() or "client"
     raw_source_message_id = (payload.source_message_id or "").strip()
-    source_message_id = (
-        hashlib.sha256(raw_source_message_id.encode("utf-8")).hexdigest()
-        if raw_source_message_id
-        else None
-    )
-    if source_message_id:
-        existing = db.scalar(
-            select(Task)
-            .options(selectinload(Task.assignee))
-            .where(
-                Task.source_platform == source_platform,
-                Task.source_message_id == source_message_id,
-            )
-        )
+    source_keys: tuple[str, ...] = ()
+    if raw_source_message_id:
+        digest = hashlib.sha256(raw_source_message_id.encode("utf-8")).hexdigest()
+        # Keep older owned retries valid. New member keys cannot collide with the
+        # global keys used by service ingestion or with another member's keys.
+        source_keys = (digest,) if staff_id is None else (f"staff:{staff_id}:{digest}", digest)
+        existing = task_with_source(db, principal, source_platform, source_keys)
         if existing:
             return task_read(existing)
     assignee = get_staff(db, payload.assignee_id)
     require_assignable(assignee)
     values = payload.model_dump()
     values["source_platform"] = source_platform
-    values["source_message_id"] = source_message_id
+    values["source_message_id"] = source_keys[0] if source_keys else None
     if values["next_remind_at"] is None and values["remind_enabled"]:
         values["next_remind_at"] = utcnow() + timedelta(
             minutes=values["remind_interval_minutes"]
@@ -405,37 +464,32 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db)) -> TaskRead:
         db.commit()
     except IntegrityError:
         db.rollback()
-        if not source_message_id:
+        if not source_keys:
             raise
-        existing = db.scalar(
-            select(Task)
-            .options(selectinload(Task.assignee))
-            .where(
-                Task.source_platform == source_platform,
-                Task.source_message_id == source_message_id,
-            )
-        )
+        existing = task_with_source(db, principal, source_platform, source_keys)
         if not existing:
+            if staff_id is not None:
+                raise HTTPException(status_code=409, detail="无法使用该任务来源标识")
             raise
         return task_read(existing)
-    return task_read(get_task(db, task.id))
+    return task_read(get_task(db, task.id, principal))
 
 
 @app.get(
     "/api/v1/tasks/by-number/{task_no}",
     response_model=TaskRead,
-    dependencies=secured,
 )
 def read_task_by_number(
     task_no: str,
     include_deleted: bool = True,
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
     normalized = task_no.strip().upper()
     query = (
         select(Task)
         .options(selectinload(Task.assignee))
-        .where(Task.task_no == normalized)
+        .where(Task.task_no == normalized, *task_scope(principal))
     )
     if not include_deleted:
         query = query.where(Task.deleted_at.is_(None))
@@ -467,6 +521,7 @@ def complete_channel_tasks(
             select(Task)
             .options(selectinload(Task.assignee))
             .where(Task.task_no == task_no)
+            .with_for_update()
         )
         if not task:
             raise HTTPException(status_code=404, detail=f"任务 {task_no} 不存在")
@@ -490,6 +545,7 @@ def complete_channel_tasks(
                     Task.status != "done",
                 )
                 .order_by(Task.id)
+                .with_for_update()
             ).all()
         )
         targets = tasks
@@ -507,9 +563,13 @@ def complete_channel_tasks(
     )
 
 
-@app.get("/api/v1/tasks/{task_id}", response_model=TaskRead, dependencies=secured)
-def read_task(task_id: int, db: Session = Depends(get_db)) -> TaskRead:
-    return task_read(get_task(db, task_id))
+@app.get("/api/v1/tasks/{task_id}", response_model=TaskRead)
+def read_task(
+    task_id: int,
+    principal: AuthPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+) -> TaskRead:
+    return task_read(get_task(db, task_id, principal))
 
 
 @app.patch("/api/v1/tasks/{task_id}", response_model=TaskRead)
@@ -519,17 +579,16 @@ def update_task(
     principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
-    task = get_task(db, task_id)
     values = payload.model_dump(exclude_unset=True)
     operator = values.pop("operator_name", "客户端用户")
-    if values.get("status") == "done":
-        operator = completion_operator(
-            principal,
-            values.get("assignee_id", task.assignee_id),
-        )
-    if "assignee_id" in values:
-        if values["assignee_id"] != task.assignee_id:
-            require_assignable(get_staff(db, values["assignee_id"]))
+    completing = values.get("status") == "done"
+    task = get_task(db, task_id, principal, for_update=True, completing=completing)
+    assignee_id = values.get("assignee_id", task.assignee_id)
+    require_task_assignment(principal, assignee_id)
+    if completing:
+        operator = completion_operator(principal, assignee_id)
+    if assignee_id != task.assignee_id:
+        require_assignable(get_staff(db, assignee_id))
     for field, value in values.items():
         setattr(task, field, value)
     if "status" in values:
@@ -544,21 +603,22 @@ def update_task(
                 )
     add_event(db, task, "updated", operator, "修改任务")
     db.commit()
-    return task_read(get_task(db, task.id))
+    return task_read(get_task(db, task_id, principal))
 
 
-@app.delete("/api/v1/tasks/{task_id}", response_model=TaskRead, dependencies=secured)
+@app.delete("/api/v1/tasks/{task_id}", response_model=TaskRead)
 def delete_task(
     task_id: int,
     operator_name: str = "客户端用户",
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
-    task = get_task(db, task_id)
+    task = get_task(db, task_id, principal, for_update=True)
     task.deleted_at = utcnow()
     task.next_remind_at = None
     add_event(db, task, "deleted", operator_name, "删除任务")
     db.commit()
-    return task_read(get_task(db, task.id, include_deleted=True))
+    return task_read(get_task(db, task_id, principal, include_deleted=True))
 
 
 @app.post("/api/v1/tasks/{task_id}/complete", response_model=TaskRead)
@@ -568,23 +628,24 @@ def complete_task(
     principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
-    task = get_task(db, task_id)
+    task = get_task(db, task_id, principal, for_update=True, completing=True)
     operator = completion_operator(principal, task.assignee_id)
     task.status = "done"
     task.completed_at = utcnow()
     task.next_remind_at = None
     add_event(db, task, "completed", operator, "完成任务")
     db.commit()
-    return task_read(get_task(db, task.id))
+    return task_read(get_task(db, task_id, principal))
 
 
-@app.post("/api/v1/tasks/{task_id}/reopen", response_model=TaskRead, dependencies=secured)
+@app.post("/api/v1/tasks/{task_id}/reopen", response_model=TaskRead)
 def reopen_task(
     task_id: int,
     payload: ActionRequest,
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
-    task = get_task(db, task_id)
+    task = get_task(db, task_id, principal, for_update=True)
     task.status = "todo"
     task.completed_at = None
     task.next_remind_at = (
@@ -594,35 +655,41 @@ def reopen_task(
     )
     add_event(db, task, "reopened", payload.operator_name, "重新打开任务")
     db.commit()
-    return task_read(get_task(db, task.id))
+    return task_read(get_task(db, task_id, principal))
 
 
-@app.post("/api/v1/tasks/{task_id}/restore", response_model=TaskRead, dependencies=secured)
+@app.post("/api/v1/tasks/{task_id}/restore", response_model=TaskRead)
 def restore_task(
     task_id: int,
     payload: ActionRequest,
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
-    task = get_task(db, task_id, include_deleted=True)
+    task = get_task(db, task_id, principal, include_deleted=True, for_update=True)
     task.deleted_at = None
     if task.status != "done" and task.remind_enabled:
         task.next_remind_at = utcnow() + timedelta(minutes=task.remind_interval_minutes)
     add_event(db, task, "restored", payload.operator_name, "恢复任务")
     db.commit()
-    return task_read(get_task(db, task.id))
+    return task_read(get_task(db, task_id, principal))
 
 
 @app.get(
     "/api/v1/tasks/{task_id}/events",
     response_model=list[TaskEventRead],
-    dependencies=secured,
 )
-def list_task_events(task_id: int, db: Session = Depends(get_db)) -> list[TaskEvent]:
-    get_task(db, task_id, include_deleted=True)
-    return list(
-        db.scalars(
-            select(TaskEvent)
-            .where(TaskEvent.task_id == task_id)
-            .order_by(TaskEvent.created_at.desc())
-        ).all()
-    )
+def list_task_events(
+    task_id: int,
+    principal: AuthPrincipal = Depends(require_api_key),
+    db: Session = Depends(get_db),
+) -> list[TaskEvent]:
+    events = db.scalars(
+        select(TaskEvent)
+        .select_from(Task)
+        .outerjoin(TaskEvent, TaskEvent.task_id == Task.id)
+        .where(Task.id == task_id, *task_scope(principal))
+        .order_by(TaskEvent.created_at.desc())
+    ).all()
+    if not events:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return [event for event in events if event is not None]

@@ -1,4 +1,4 @@
-"""Real isolated API/database; only the paid Ark boundary is virtualized."""
+"""Real isolated API/database; only the configured PaddleOCR boundary is virtualized."""
 import json
 from datetime import timedelta
 
@@ -17,7 +17,8 @@ from app import knowledge_ocr
 def configured(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "knowledge_ocr_enabled", True)
-    monkeypatch.setattr(settings, "knowledge_ocr_api_key", "isolated-test-key")
+    monkeypatch.setattr(settings, "paddle_ocr_url", "http://paddle-ocr.test/ocr")
+    monkeypatch.setattr(settings, "paddle_ocr_auth_token", "")
 
 
 def image_item(client, user):
@@ -107,57 +108,69 @@ def test_disabled_account_cancels_before_paid_call(kb, monkeypatch):
     assert claim(factory) is None
 
 
-def response(text):
-    return {"status": "completed", "output": [{"type": "message", "content": [{"type": "output_text", "text": text}]}]}
+def response(pages):
+    return {"errorCode": 0, "result": {"ocrResults": [
+        {"prunedResult": {"rec_texts": texts, "page_index": i}}
+        for i, texts in enumerate(pages)]}}
 
 
-def test_image_adapter_uses_fixed_private_contract(tmp_path, monkeypatch):
+def test_image_adapter_uses_configured_paddle_contract(tmp_path, monkeypatch):
+    import base64
     configured(monkeypatch)
     path = tmp_path / "image.png"
     path.write_bytes(b"\x89PNG\r\n\x1a\nsynthetic")
     requests = []
+    remembered = []
     def handler(request):
         requests.append(request)
-        assert str(request.url) == "https://ark.cn-beijing.volces.com/api/v3/responses"
+        assert str(request.url) == "http://paddle-ocr.test/ocr"
         data = json.loads(request.content)
-        assert data["store"] is False and data["thinking"] == {"type": "disabled"}
-        assert data["input"][0]["content"][0]["type"] == "input_image"
+        assert data["fileType"] == 1 and data["visualize"] is False
+        assert base64.b64decode(data["file"]) == path.read_bytes()
+        assert "Authorization" not in request.headers
         assert b"image.png" not in request.content
-        return httpx.Response(200, json=response(json.dumps({"pages": [{"page": 1, "text": "健康截图文字"}]})))
-    result = knowledge_ocr.recognize(path, "截图.png", lambda _: None, transport=httpx.MockTransport(handler))
+        return httpx.Response(200, json=response([["健康截图文字"]]))
+    result = knowledge_ocr.recognize(path, "截图.png", remembered.append, transport=httpx.MockTransport(handler))
     assert result.method == "doubao_ocr_draft"
     assert result.text == "健康截图文字" and len(requests) == 1
+    assert remembered == []
 
 
-@pytest.mark.parametrize("output", ["not json", '{"pages":[]}', '{"pages":[{"page":1,"text":""}]}',
-    '{"pages":[{"page":2,"text":"wrong"}]}', '{"pages":[{"page":1,"text":"a"},{"page":1,"text":"b"}]}'])
+@pytest.mark.parametrize("output", [
+    {"errorCode": 1, "errorMsg": "private upstream body"},
+    {"errorCode": 0, "result": {"ocrResults": []}},
+    response([[]]),
+    {"errorCode": 0, "result": {"ocrResults": [{"prunedResult": {"rec_texts": [123]}}]}},
+    response([["a"], ["b"]]),
+])
 def test_invalid_outputs_never_become_evidence(tmp_path, monkeypatch, output):
     configured(monkeypatch)
     path = tmp_path / "image.png"
     path.write_bytes(b"\x89PNG\r\n\x1a\nsynthetic")
     with pytest.raises(knowledge_ocr.OcrError):
         knowledge_ocr.recognize(path, "x.png", lambda _: None,
-            transport=httpx.MockTransport(lambda _: httpx.Response(200, json=response(output))))
+            transport=httpx.MockTransport(lambda _: httpx.Response(200, json=output)))
 
 
-def test_pdf_records_cleanup_before_inference_and_sets_expiry(tmp_path, monkeypatch):
+def test_pdf_sends_one_base64_request_without_ark_cleanup(tmp_path, monkeypatch):
+    import base64
     from pypdf import PdfWriter
     configured(monkeypatch)
     path = tmp_path / "doc.pdf"
-    writer = PdfWriter(); writer.add_blank_page(width=100, height=100)
+    writer = PdfWriter(); writer.add_blank_page(width=100, height=100); writer.add_blank_page(width=100, height=100)
     with path.open("wb") as stream:
         writer.write(stream)
     events = []
     def handler(request):
-        if request.method == "POST" and request.url.path.endswith("/files"):
-            assert b'expire_at' in request.content and b'user_data' in request.content
-            events.append("upload")
-            return httpx.Response(200, json={"id": "file-test", "status": "active"})
-        assert events == ["upload", "persist:file-test"]
-        return httpx.Response(200, json=response('{"pages":[{"page":1,"text":"合成PDF"}]}'))
-    result = knowledge_ocr.recognize(path, "报告.pdf", lambda id: events.append(f"persist:{id}"), transport=httpx.MockTransport(handler))
-    assert result.text == "合成PDF"
-
+        assert request.method == "POST" and str(request.url) == "http://paddle-ocr.test/ocr"
+        data = json.loads(request.content)
+        assert data["fileType"] == 0 and base64.b64decode(data["file"]) == path.read_bytes()
+        events.append("paddle")
+        return httpx.Response(200, json=response([["合成PDF第一页"], ["合成PDF第二页"]]))
+    result = knowledge_ocr.recognize(path, "报告.pdf", lambda id: events.append(f"legacy-upload:{id}"), transport=httpx.MockTransport(handler))
+    assert result.text == "合成PDF第一页\n\n合成PDF第二页"
+    assert [p for p, _ in result.chunks] == ["第 1 页（AI OCR）", "第 2 页（AI OCR）"]
+    assert events == ["paddle"]
 
 def test_remote_cleanup_survives_purge_and_retries(kb, monkeypatch):
     client, users, factory, _ = kb
@@ -182,3 +195,4 @@ def test_remote_cleanup_survives_purge_and_retries(kb, monkeypatch):
     knowledge_ocr.cleanup_remote_once(factory)
     with factory() as db:
         assert db.scalar(select(KnowledgeRemoteCleanup)) is None
+

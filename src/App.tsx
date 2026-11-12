@@ -1,10 +1,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mayiLogo from "./assets/mayi-logo.webp";
 import { ChannelDialog } from "./components/ChannelDialog";
+import { ChannelAudienceDialog } from "./components/ChannelAudienceDialog";
+import { ChannelDeliveryDialog } from "./components/ChannelDeliveryDialog";
 import { ChannelsView } from "./components/ChannelsView";
 import { ContentGenerationView } from "./components/ContentGenerationView";
 import { MessageWorkspace } from "./components/MessageWorkspace";
 import { LoginView } from "./components/LoginView";
+import { MemberManagement } from "./components/MemberManagement";
 import { SettingsView } from "./components/SettingsView";
 import { Sidebar } from "./components/Sidebar";
 import { ToastStack, type ToastMessage } from "./components/Toast";
@@ -19,11 +22,13 @@ import {
   normalizeFeedItems,
   usesHealthRelay,
 } from "./lib/ntfy";
-import { articleApi, type ArticleStateUpdate } from "./lib/articleApi";
+import { articleApi, type ArticleStateUpdate, type ChannelDeliveryConfig, type ChannelDeliveryDraft } from "./lib/articleApi";
 import { authApi } from "./lib/authApi";
+import { canAccessDesktopPage, DESKTOP_PAGES } from "./lib/pageAccess";
 import { storage } from "./lib/storage";
 import { canonicalChannelId, canonicalizeChannels, canonicalizeFeed, canonicalizeTrash, mergeChannelSnapshot } from "./lib/channelIdentity";
 import { purgeExpiredTrash } from "./lib/trash";
+import { useChannelDelivery } from "./lib/useChannelDelivery";
 import type {
   AppSettings,
   AuthSession,
@@ -58,7 +63,7 @@ function remapArticleIds(items: FeedItem[], idMap?: Record<string, string>): Fee
 }
 
 export default function App() {
-  const [channels, setChannels] = useState<SmartChannel[]>(() =>
+  const [cachedChannels, setChannels] = useState<SmartChannel[]>(() =>
     storage.loadChannels(demoChannels, storage.loadSettings(defaultSettings).defaultServer),
   );
   const [trash, setTrash] = useState<TrashEntry[]>(() => {
@@ -82,7 +87,39 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState<"loading" | "signed-in" | "signed-out">(
     () => window.signalDesk?.loadAuthSession ? "loading" : "signed-in",
   );
-  const [activeView, setActiveView] = useState<ViewKey>("today");
+  const [requestedView, setActiveView] = useState<ViewKey>("today");
+  const authUser = authSession?.user;
+  const canAccess = useCallback((page: ViewKey | "internal") =>
+    authStatus === "signed-in" && canAccessDesktopPage(authUser, page), [authStatus, authUser]);
+  const firstPage = DESKTOP_PAGES.find(({ id }) => id !== "internal" && canAccess(id))?.id;
+  const hasWorkspace = firstPage !== undefined;
+  const activeView: ViewKey = canAccess(requestedView)
+    ? requestedView
+    : firstPage && firstPage !== "internal" ? firstPage : "today";
+  const canReadMessages = canAccess("today") || canAccess("inbox") || canAccess("saved") || canAccess("trash");
+  const canViewChannels = canAccess("channels");
+  const channelDelivery = useChannelDelivery(settings, Boolean(authSession));
+  const deliveryCatalog = channelDelivery.catalog;
+  const channels = useMemo(() => {
+    if (!deliveryCatalog?.management_supported) return cachedChannels;
+    const archived = new Set(deliveryCatalog.archived_ids);
+    const remaining = new Map(cachedChannels.filter((channel) => !archived.has(channel.id)).map((channel) => [channel.id, channel]));
+    const ordered: SmartChannel[] = [];
+    for (const row of deliveryCatalog.channels) {
+      const channel = remaining.get(row.id);
+      if (!channel) continue;
+      const state = row.enabled ? "active" : channel.state === "active" ? "paused" : channel.state;
+      ordered.push(channel.managed || state === channel.state ? channel : { ...channel, state });
+      remaining.delete(row.id);
+    }
+    return [...ordered, ...remaining.values()];
+  }, [cachedChannels, deliveryCatalog]);
+  const canManageLegacy = canViewChannels && (!authSession || (authUser?.role === "admin" && channelDelivery.unsupported === true));
+  const canConfigureDelivery = canViewChannels && authUser?.role === "admin" && channelDelivery.catalog?.can_manage === true;
+  const canCreateChannels = canManageLegacy || canConfigureDelivery;
+  const desktopChannelPush = !authSession || channelDelivery.unsupported === true;
+  const canUseTasks = canAccess("tasks");
+  const canUseKnowledge = canAccess("knowledge");
   const [selectedItemId, setSelectedItemId] = useState<string | null>(feed[0]?.id || null);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -91,6 +128,9 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<SmartChannel | null>(null);
+  const [deliveryEditor, setDeliveryEditor] = useState<ChannelDeliveryConfig | null | undefined>();
+  const [audienceChannelId, setAudienceChannelId] = useState<string>();
+  const audienceChannel = deliveryCatalog?.channels.find((channel) => channel.id === audienceChannelId);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [appVersion, setAppVersion] = useState("0.2.0");
   const [platform, setPlatform] = useState("web");
@@ -158,6 +198,62 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+  const sessionToken = authSession?.accessToken;
+  const sessionBackend = authSession?.backendUrl;
+  useEffect(() => {
+    if (!sessionToken || !sessionBackend) return;
+    let disposed = false;
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        const user = await authApi.me({ accessToken: sessionToken, backendUrl: sessionBackend });
+        if (!disposed) setAuthSession((current) =>
+          current?.accessToken === sessionToken && JSON.stringify(current.user) !== JSON.stringify(user)
+            ? { ...current, user }
+            : current);
+      } catch (error) {
+        const status = (error as { status?: number })?.status;
+        if (!disposed && (status === 401 || status === 403)) {
+          setAuthStatus("signed-out");
+          setAuthSession(null);
+          setSettings((current) => ({ ...current, backendAuthToken: "", operatorName: "" }));
+          void window.signalDesk?.clearAuthSession().catch(() => undefined);
+          void window.signalDesk?.hideTaskWidget?.().catch(() => undefined);
+        }
+      } finally {
+        pending = false;
+      }
+    };
+    window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 30_000);
+    return () => {
+      disposed = true;
+      window.removeEventListener("focus", refresh);
+      window.clearInterval(timer);
+    };
+  }, [sessionToken, sessionBackend]);
+
+  useEffect(() => {
+    if (!canViewChannels) {
+      setDialogOpen(false);
+      setEditingChannel(null);
+    }
+    if (!canConfigureDelivery) setDeliveryEditor(undefined);
+  }, [canConfigureDelivery, canViewChannels]);
+  useEffect(() => {
+    if (authStatus === "signed-in" && !canUseTasks) {
+      void window.signalDesk?.hideTaskWidget?.().catch(() => undefined);
+    }
+  }, [authStatus, canUseTasks]);
+  useEffect(() => {
+    if (hasWorkspace && activeView !== requestedView) {
+      setActiveView(activeView);
+      setSelectedChannelId(null);
+      setSearchQuery("");
+    }
+  }, [activeView, hasWorkspace, requestedView]);
   useEffect(() => {
     const timer = window.setInterval(() => {
       setTrash((current) => purgeExpiredTrash(current));
@@ -187,11 +283,12 @@ export default function App() {
   }, []);
 
   const mayChangeView = useCallback((next: ViewKey) => {
+    if (!canAccess(next)) return false;
     if (next === activeView) return true;
     const event = new Event("beforeunload", { cancelable: true });
     window.dispatchEvent(event);
     return !event.defaultPrevented || window.confirm("当前页面有未保存的内容。确定离开并放弃这些修改吗？");
-  }, [activeView]);
+  }, [activeView, canAccess]);
 
   useEffect(() => {
     const bridge = window.signalDesk;
@@ -271,7 +368,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!articleApi.configured(settings)) return;
+    if ((!canReadMessages && !canViewChannels) || !articleApi.configured(settings)) return;
     let cancelled = false;
 
     async function synchronizeBackend() {
@@ -279,9 +376,14 @@ export default function App() {
         const localChannels = channelsRef.current.filter(
           (channel) => !channel.isDemo || Boolean(channel.topic.trim()),
         );
-        await Promise.all(
+        if (!authSession && canViewChannels) await Promise.all(
           localChannels.map((channel) => articleApi.upsertChannel(settings, channel)),
         );
+        if (!canReadMessages) {
+          const remoteChannels = await articleApi.listChannels(settings);
+          if (!cancelled) setChannels(current => mergeChannelSnapshot(current, remoteChannels));
+          return;
+        }
         await articleApi.syncArticles(settings, feedRef.current, trashRef.current, channelsRef.current);
         const [articleResult, remoteChannels] = await Promise.all([
           articleApi.listArticles(settings, "all"),
@@ -304,7 +406,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [applyBackendSnapshot, backendSignature, notify]);
+  }, [applyBackendSnapshot, backendSignature, canReadMessages, canViewChannels, notify]);
 
   const hydrateTrashItems = useCallback((items: FeedItem[]) => {
     const itemById = new Map(items.map((item) => [item.id, item]));
@@ -392,6 +494,7 @@ export default function App() {
   }
 
   const syncChannels = useCallback(async () => {
+    if (!canReadMessages) return;
     const bridge = window.signalDesk;
     const connectedChannels = canonicalizeChannels(channels).filter(
       (channel) => channel.state === "active" && Boolean(channelConnection(channel, settings)?.topic),
@@ -528,7 +631,7 @@ export default function App() {
     } finally {
       setRefreshing(false);
     }
-  }, [applyBackendSnapshot, channels, settings, notify, trashIds, hydrateTrashItems]);
+  }, [applyBackendSnapshot, channels, settings, notify, trashIds, hydrateTrashItems, canReadMessages]);
 
   useEffect(() => {
     window.signalDesk
@@ -581,7 +684,7 @@ export default function App() {
         setActiveView("inbox");
         return;
       }
-      if (event.type !== "message" || !event.subscriptionId || !event.payload) return;
+      if (!canReadMessages || event.type !== "message" || !event.subscriptionId || !event.payload) return;
       const subscriptionId = canonicalChannelId(event.subscriptionId, channels);
       const channel = channels.find((item) => item.id === subscriptionId);
       if (!channel) return;
@@ -600,7 +703,7 @@ export default function App() {
       };
       if (channel.id === "health" && event.payload.tags?.includes("health_status")) {
         remember();
-        if (settings.notifications) {
+        if (desktopChannelPush && settings.notifications && canAccess("inbox")) {
           const title = "健康情报推送状态";
           const body = plainNotification(event.payload.message || "服务器正在准备今天的健康情报，完成后会继续推送。");
           notify({ title, message: body, tone: "info" });
@@ -618,7 +721,7 @@ export default function App() {
         const items = received.filter(item => !excluded.includes(item.id));
         if (items.length === 0) return;
         setFeed(current => mergeFeed(remapArticleIds(current, idMap), items, excluded));
-        if (settings.notifications) {
+        if (desktopChannelPush && settings.notifications && canAccess("inbox")) {
           const notificationItem = items[0];
           bridge.showNotification({
             title: items.length === 1 ? notificationItem.title : `${channel.name} · ${items.length} 条新情报`,
@@ -661,14 +764,25 @@ export default function App() {
     notify,
     hydrateTrashItems,
     mayChangeView,
+    canAccess,
+    canReadMessages,
+    desktopChannelPush,
   ]);
+
+  const openCreateChannel = useCallback(() => {
+    if (canConfigureDelivery) setDeliveryEditor(null);
+    else if (canManageLegacy) {
+      setEditingChannel(null);
+      setDialogOpen(true);
+    }
+  }, [canConfigureDelivery, canManageLegacy]);
 
   useEffect(() => {
     const bridge = window.signalDesk;
     if (!bridge) return;
 
     const desired = new Map(
-      canonicalizeChannels(channels)
+      (canReadMessages ? canonicalizeChannels(channels) : [])
         .filter((channel) => channel.state === "active")
         .flatMap((channel) => {
           const connection = channelConnection(channel, subscriptionDefaults);
@@ -723,7 +837,7 @@ export default function App() {
           }));
         });
     }
-  }, [channels, subscriptionDefaults]);
+  }, [channels, subscriptionDefaults, canReadMessages]);
 
   useEffect(() => {
     const bridge = window.signalDesk;
@@ -738,20 +852,22 @@ export default function App() {
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
+      if (audienceChannel) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        document.querySelector<HTMLInputElement>('.search-field input')?.focus();
+        document.querySelector<HTMLInputElement>(
+          activeView === "members" ? ".member-search input" : ".search-field input",
+        )?.focus();
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        if (activeView === "content" || activeView === "knowledge" || activeView === "trash") return;
-        setEditingChannel(null);
-        setDialogOpen(true);
+        if (activeView === "content" || activeView === "knowledge" || activeView === "trash" || activeView === "members") return;
+        openCreateChannel();
       }
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [activeView]);
+  }, [activeView, audienceChannel, openCreateChannel]);
 
   const visibleItems = useMemo(() => {
     if (activeView === "trash") return [];
@@ -893,6 +1009,7 @@ export default function App() {
   }
 
   function saveChannel(channel: SmartChannel) {
+    if (!canManageLegacy && !channel.managed) return;
     channel = canonicalizeChannels([channel], channels)[0];
     const exists = channels.some((item) => item.id === channel.id);
     setChannels((current) =>
@@ -912,9 +1029,22 @@ export default function App() {
     });
   }
 
+  async function saveChannelDelivery(draft: ChannelDeliveryDraft) {
+    if (!canConfigureDelivery) throw new Error("需要管理员权限才能配置频道。");
+    const currentSettings = settings;
+    await channelDelivery.save(draft);
+    if (settingsRef.current.backendAuthToken !== currentSettings.backendAuthToken || settingsRef.current.backendUrl !== currentSettings.backendUrl) return;
+    notify({ title: "频道配置已保存", tone: "success" });
+    void articleApi.listChannels(currentSettings).then((remoteChannels) => {
+      if (settingsRef.current.backendAuthToken === currentSettings.backendAuthToken && settingsRef.current.backendUrl === currentSettings.backendUrl) {
+        setChannels((current) => mergeChannelSnapshot(current, remoteChannels));
+      }
+    }).catch(() => undefined);
+  }
+
   function toggleChannel(channelId: string) {
     const channel = channels.find((item) => item.id === channelId);
-    if (!channel || channel.managed) return;
+    if (!canManageLegacy || !channel || channel.managed) return;
     const updated: SmartChannel = {
       ...channel,
       state: channel.state === "active" ? "paused" : channel.topic ? "active" : "draft",
@@ -984,6 +1114,7 @@ export default function App() {
     await window.signalDesk?.clearAuthSession().catch(() => undefined);
     await window.signalDesk?.hideTaskWidget().catch(() => undefined);
     setAuthSession(null);
+    setAudienceChannelId(undefined);
     setSettings((current) => ({
       ...current,
       backendUrl: defaultSettings.backendUrl,
@@ -994,6 +1125,7 @@ export default function App() {
   }
 
   async function toggleTaskWidget() {
+    if (!canUseTasks) return;
     const bridge = window.signalDesk;
     if (!bridge) {
       notify({ title: "桌面挂件仅支持客户端", tone: "info" });
@@ -1047,7 +1179,7 @@ export default function App() {
 
   return (
     <div className={`app-shell platform-${platform}`}>
-      {authSession && <Suspense fallback={null}><KnowledgeNotificationListener key={`${settings.backendUrl}-${authSession.user.id}`} settings={settings} userId={authSession.user.id} /></Suspense>}
+      {authSession && canUseKnowledge && <Suspense fallback={null}><KnowledgeNotificationListener key={`${settings.backendUrl}-${authSession.user.id}`} settings={settings} userId={authSession.user.id} /></Suspense>}
       <div className="window-drag-region" aria-hidden="true">
         <img src={mayiLogo} alt="" />
         <span>迈医协同</span>
@@ -1059,6 +1191,8 @@ export default function App() {
         savedCount={savedCount}
         trashCount={trashCount}
         statuses={statuses}
+        canAccess={canAccess}
+        onLogout={logout}
         onViewChange={(view) => {
           if (!mayChangeView(view)) return;
           setActiveView(view);
@@ -1075,17 +1209,19 @@ export default function App() {
       />
 
       <main className="main-surface" style={updateCheck.status === "ready" ? { gridTemplateRows: "72px auto minmax(0, 1fr)" } : undefined}>
-        <Topbar
+        {hasWorkspace && <Topbar
           activeView={activeView}
           searchQuery={searchQuery}
-          refreshing={refreshing}
+          refreshing={refreshing || (activeView === "channels" && channelDelivery.loading === true)}
           onSearchChange={setSearchQuery}
-          onRefresh={syncChannels}
-          onCreateChannel={() => {
-            setEditingChannel(null);
-            setDialogOpen(true);
+          onRefresh={() => {
+            if (activeView === "channels") void channelDelivery.reload();
+            if (canReadMessages) void syncChannels();
           }}
-        />
+          canCreateChannel={canCreateChannels}
+          canRefresh={canReadMessages || activeView === "channels"}
+          onCreateChannel={openCreateChannel}
+        />}
 
         {updateCheck.status === "ready" && (
           <div className="settings-row" role="status" aria-live="polite" style={{ background: "var(--green-soft)" }}>
@@ -1100,22 +1236,38 @@ export default function App() {
         )}
 
         <div className="page-body">
-          {activeView === "channels" ? (
+          {!hasWorkspace ? (
+            <div className="settings-row" role="status">
+              <div><strong>暂无可访问的工作页面</strong><span>请联系管理员分配页面权限。</span></div>
+            </div>
+          ) : activeView === "channels" ? (
             <ChannelsView
               channels={channels}
               statuses={statuses}
-              onCreate={() => {
-                setEditingChannel(null);
-                setDialogOpen(true);
-              }}
+              catalog={channelDelivery.catalog}
+              catalogLoading={channelDelivery.loading}
+              catalogError={channelDelivery.error}
+              pendingChannelId={channelDelivery.pendingChannelId}
+              subscriptionError={channelDelivery.subscriptionError}
+              canManageDelivery={canConfigureDelivery}
+              canManageLegacy={canManageLegacy}
+              managementPending={channelDelivery.managementPending}
+              onCreate={canCreateChannels ? openCreateChannel : undefined}
               onEdit={(channel) => {
                 setEditingChannel(channel);
                 setDialogOpen(true);
               }}
+              onConfigure={setDeliveryEditor}
+              onConfigureAudience={setAudienceChannelId}
+              onSubscribe={(channel) => { void channelDelivery.setSubscription(channel); }}
+              onSetEnabled={channelDelivery.setEnabled}
+              onArchive={channelDelivery.archive}
+              onReorder={channelDelivery.reorder}
+              onRetryCatalog={() => { void channelDelivery.reload(); }}
               onToggle={toggleChannel}
               onDelete={(channelId) => {
                 const channel = channels.find((item) => item.id === channelId);
-                if (!channel || channel.managed || !window.confirm(`删除频道“${channel.name}”及其本地消息吗？`)) return;
+                if (!canManageLegacy || !channel || channel.managed || !window.confirm(`删除频道“${channel.name}”及其本地消息吗？`)) return;
                 setChannels((current) => current.filter((item) => item.id !== channelId));
                 setFeed((current) => current.filter((item) => item.channelId !== channelId));
                 if (articleApi.contentConfigured(settings)) {
@@ -1147,7 +1299,13 @@ export default function App() {
               settings={settings}
               searchQuery={searchQuery}
               currentStaffId={authSession?.user.staffId}
-              canManageMembers={authSession?.user.role === "admin"}
+              isAdmin={authUser?.role === "admin"}
+            />
+          ) : activeView === "members" ? (
+            <MemberManagement
+              settings={settings}
+              currentStaffId={authUser?.staffId}
+              onMembersChanged={channelDelivery.reload}
             />
           ) : activeView === "knowledge" ? (
             <Suspense fallback={<p role="status">正在打开知识库…</p>}><KnowledgeWorkspace settings={settings} canManage={authSession?.user.role === "admin"} /></Suspense>
@@ -1218,7 +1376,7 @@ export default function App() {
       </main>
 
       <ChannelDialog
-        open={dialogOpen}
+        open={canViewChannels && dialogOpen && (canManageLegacy || editingChannel?.managed === true)}
         channel={editingChannel}
         settings={settings}
         onClose={() => {
@@ -1227,6 +1385,15 @@ export default function App() {
         }}
         onSave={saveChannel}
       />
+      {canConfigureDelivery && deliveryEditor !== undefined && <ChannelDeliveryDialog
+        key={deliveryEditor?.id ?? "new"} channel={deliveryEditor}
+        onClose={() => setDeliveryEditor(undefined)} onSave={saveChannelDelivery}
+      />}
+      {canConfigureDelivery && activeView === "channels" && audienceChannel && <ChannelAudienceDialog
+        key={audienceChannel.id} channel={audienceChannel} settings={settings}
+        onClose={() => setAudienceChannelId(undefined)}
+        onSave={(previousIds, allowedIds) => channelDelivery.saveAudience(audienceChannel, previousIds, allowedIds)}
+      />}
       <ToastStack
         toasts={toasts}
         onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))}

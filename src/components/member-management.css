@@ -1,4 +1,4 @@
-.member-management { color: var(--text); }
+.member-management { min-height: 0; height: 100%; padding: 18px 20px 24px; overflow: auto; color: var(--text); }
 .member-heading, .member-actions, .member-editor-heading, .member-row-actions { display: flex; align-items: center; gap: 12px; }
 .member-heading, .member-editor-heading { justify-content: space-between; }
 .member-heading { margin: 10px 0 24px; align-items: flex-start; }
@@ -52,6 +52,10 @@
 .member-editor label small { color: #58625b; line-height: 1.6; }
 .member-editor .member-toggle { display: flex; align-items: center; gap: 8px; }
 .member-toggle input { width: 16px; height: 16px; accent-color: #357b4b; }
+.member-page-access { grid-column: 1 / -1; display: grid; gap: 10px; }
+.member-page-access .member-hint { margin: 0; }
+.member-editor .member-page-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.member-page-list legend { padding: 0 0 8px; font-size: 12px; font-weight: 600; }
 .member-save { justify-content: center; width: 100%; }
 .member-channel-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .member-channel-section h4 { margin: 0; font-size: 14px; }

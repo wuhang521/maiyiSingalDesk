@@ -70,8 +70,13 @@ jobs:
           test "$GITHUB_REPOSITORY" = "wuhang521/maiyiSingalDesk"
           notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
           test -f "$notes_file"
+          draft_state=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null || true)
+          if [[ "$draft_state" == false ]]; then
+            echo "This version has already been published."
+            exit 0
+          fi
           (cd artifacts && sha256sum * > SHA256SUMS.txt)
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if [[ -z "$draft_state" ]]; then
             gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "迈医协同 ${GITHUB_REF_NAME}" --notes-file "$notes_file" --draft
           fi
           gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber

@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const root = process.cwd();
-const artifacts = path.join(root, "artifacts", "members");
+const artifacts = process.env.MEMBER_TEST_ARTIFACTS || path.join(root, "artifacts", "members");
 await mkdir(artifacts, { recursive: true });
 const run = await mkdtemp(path.join(artifacts, "run-"));
 const socket = createServer();
@@ -70,8 +70,20 @@ try {
   page.on("dialog", (dialog) => dialog.accept());
   await expect(page.getByRole("heading", { name: "登录工作台" })).toBeVisible();
   await signIn("preview-admin");
-  await page.getByRole("button", { name: "任务中心", exact: true }).click();
-  await page.getByRole("button", { name: "用户管理", exact: true }).click();
+  const navigation = page.getByRole("navigation", { name: "主导航" });
+  const membersEntry = navigation.getByRole("button", { name: "用户管理", exact: true });
+  await expect(navigation.getByRole("button", { name: "任务中心", exact: true })).toBeVisible();
+  await membersEntry.focus();
+  await membersEntry.press("Enter");
+  await expect(membersEntry).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { level: 1, name: "用户管理", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新建任务", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("textbox", { name: "搜索用户" })).toBeFocused();
+  await navigation.getByRole("button", { name: "任务中心", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "任务中心", exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("button", { name: "用户管理", exact: true })).toHaveCount(0);
+  await membersEntry.click();
   await expect(page.getByRole("row", { name: /本地测试管理员/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "移除 本地测试管理员" })).toBeDisabled();
 
@@ -84,8 +96,8 @@ try {
   await expect(page.getByRole("button", { name: "添加用户", exact: true })).toBeFocused();
   await expect(page.getByRole("row", { name: /新加入的测试同事/ })).toBeVisible();
   await page.getByRole("button", { name: "管理 新加入的测试同事" }).click();
-  await page.getByRole("combobox", { name: /接收渠道/ }).selectOption("qq");
-  await page.getByLabel("渠道接收 ID").fill("synthetic-qq-recipient");
+  await page.getByRole("combobox", { name: /接收渠道/ }).selectOption("weixin");
+  await page.getByLabel("渠道接收 ID").fill("synthetic-wechat-recipient");
   await page.getByRole("button", { name: "绑定渠道", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "消息渠道已绑定" })).toBeVisible();
 
@@ -131,12 +143,12 @@ try {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
   }
-  await page.getByLabel("渠道接收 ID").fill("synthetic-qq-recipient");
+  await page.getByLabel("渠道接收 ID").fill("synthetic-wechat-recipient");
   await page.getByRole("button", { name: "绑定渠道", exact: true }).click();
   const channelError = page.getByRole("region", { name: "消息接收渠道" }).getByRole("alert");
   await expect(channelError).toContainText("已存在");
   await expect(channelError).toBeFocused();
-  await expect(page.getByLabel("渠道接收 ID")).toHaveValue("synthetic-qq-recipient");
+  await expect(page.getByLabel("渠道接收 ID")).toHaveValue("synthetic-wechat-recipient");
   await page.screenshot({ path: path.join(artifacts, "compact-channel-error.png") });
   await page.getByRole("button", { name: "关闭用户表单" }).click();
   await page.getByRole("heading", { name: "用户管理", exact: true }).scrollIntoViewIfNeeded();
@@ -148,7 +160,7 @@ try {
   await expect(page.getByText("需保留的历史测试任务", { exact: true })).toBeVisible();
   expect(pageErrors).toEqual([]);
   expect(outgoing).toEqual([]);
-  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, backend: "isolated SQLite", checks: ["admin-only entry", "add login", "bind channel", "disable revokes sessions", "remove preserves tasks", "restore disabled", "reset password", "grant existing staff", "member login and permission", "1440/1080 layout", "keyboard focus after save", "visible channel failure preserving input"] }, null, 2));
+  await writeFile(path.join(artifacts, "result.json"), JSON.stringify({ passed: true, backend: "isolated SQLite", checks: ["admin-only sidebar entry", "keyboard opens independent member page", "task center has no member tab", "user search keyboard focus", "add login", "bind WeChat", "disable revokes sessions", "remove preserves tasks", "restore disabled", "reset password", "grant existing staff", "member login and permission", "1440/1080 layout", "keyboard focus after save", "visible channel failure preserving input"] }, null, 2));
   console.log("用户管理 Electron E2E 通过：添加、绑定渠道、停用、撤销会话、移除保留历史、恢复、密码重置、已有人员开通、普通成员权限、两种桌面尺寸。");
 } catch (error) {
   if (page) await page.screenshot({ path: path.join(artifacts, "failure.png"), timeout: 10000 }).catch(() => undefined);

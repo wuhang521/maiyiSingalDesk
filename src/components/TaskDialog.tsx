@@ -5,6 +5,7 @@ interface TaskDialogProps {
   open: boolean;
   task: TaskItem | null;
   staff: StaffMember[];
+  fixedAssigneeId?: number;
   onClose: () => void;
   onSave: (draft: TaskDraft) => Promise<void>;
 }
@@ -16,7 +17,7 @@ function localDateTime(value: string | null | undefined): string {
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-export function TaskDialog({ open, task, staff, onClose, onSave }: TaskDialogProps) {
+export function TaskDialog({ open, task, staff, fixedAssigneeId, onClose, onSave }: TaskDialogProps) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [assigneeId, setAssigneeId] = useState(0);
@@ -25,6 +26,8 @@ export function TaskDialog({ open, task, staff, onClose, onSave }: TaskDialogPro
   const [remindEnabled, setRemindEnabled] = useState(true);
   const [intervalHours, setIntervalHours] = useState(5);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const assignedId = fixedAssigneeId ?? assigneeId;
 
   useEffect(() => {
     if (!open) return;
@@ -35,24 +38,28 @@ export function TaskDialog({ open, task, staff, onClose, onSave }: TaskDialogPro
     setDueAt(localDateTime(task?.due_at));
     setRemindEnabled(task?.remind_enabled ?? true);
     setIntervalHours((task?.remind_interval_minutes || 300) / 60);
+    setError("");
   }, [open, task, staff]);
 
   if (!open) return null;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!title.trim() || !assigneeId) return;
+    if (!title.trim() || !assignedId || saving) return;
     setSaving(true);
+    setError("");
     try {
       await onSave({
         title: title.trim(),
         content: content.trim(),
-        assignee_id: assigneeId,
+        assignee_id: assignedId,
         priority,
         due_at: dueAt ? new Date(dueAt).toISOString() : null,
         remind_enabled: remindEnabled,
         remind_interval_minutes: Math.round(intervalHours * 60),
       });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "无法保存任务，请稍后重试");
     } finally {
       setSaving(false);
     }
@@ -97,7 +104,7 @@ export function TaskDialog({ open, task, staff, onClose, onSave }: TaskDialogPro
         </label>
 
         <div className="task-form-grid">
-          <label className="task-form-field">
+          {fixedAssigneeId === undefined && <label className="task-form-field">
             <span>负责人</span>
             <select
               value={assigneeId}
@@ -108,7 +115,7 @@ export function TaskDialog({ open, task, staff, onClose, onSave }: TaskDialogPro
                 <option key={item.id} value={item.id}>{item.name}</option>
               ))}
             </select>
-          </label>
+          </label>}
           <label className="task-form-field">
             <span>优先级</span>
             <select value={priority} onChange={(event) => setPriority(Number(event.target.value))}>
@@ -150,9 +157,10 @@ export function TaskDialog({ open, task, staff, onClose, onSave }: TaskDialogPro
           <span>任务未完成时持续提醒负责人</span>
         </label>
 
+        {error && <div className="task-error" role="alert">{error}</div>}
         <div className="task-dialog-actions">
           <button className="secondary-button" type="button" onClick={onClose}>取消</button>
-          <button className="primary-button" disabled={saving || !title.trim() || !assigneeId}>
+          <button className="primary-button" disabled={saving || !title.trim() || !assignedId}>
             {saving ? "保存中…" : "保存任务"}
           </button>
         </div>

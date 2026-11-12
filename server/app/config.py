@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     cors_origins: str = "*"
     hermes_webhook_url: str = ""
     hermes_webhook_secret: str = ""
+    channel_push_enabled: bool = False
+    channel_wechat_webhook_url: str = ""
+    channel_wechat_webhook_secret: str = ""
+    channel_wechat_routes_file: str = ""
     prompt_api_key: str = ""
     prompt_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     prompt_model: str = ""
@@ -80,9 +84,30 @@ class Settings(BaseSettings):
     knowledge_notification_webhook_base: str = ""
     knowledge_notification_webhook_secret: str = ""
     knowledge_ocr_enabled: bool = False
+    # Legacy Ark cleanup only; PaddleOCR does not use an Ark key or model.
     knowledge_ocr_api_key: str = ""
     knowledge_ocr_model: str = "doubao-seed-2-0-lite-260428"
     knowledge_ocr_max_pdf_pages: int = Field(default=10, ge=1, le=10)
+    paddle_ocr_url: str = Field(
+        default="http://113.46.159.100:18080/ocr",
+        validation_alias=AliasChoices("PADDLE_OCR_URL", "TASK_PADDLE_OCR_URL"),
+    )
+    paddle_ocr_auth_header: str = Field(
+        default="Authorization",
+        validation_alias=AliasChoices("PADDLE_OCR_AUTH_HEADER", "TASK_PADDLE_OCR_AUTH_HEADER"),
+    )
+    paddle_ocr_auth_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("PADDLE_OCR_AUTH_TOKEN", "TASK_PADDLE_OCR_AUTH_TOKEN"),
+    )
+    paddle_ocr_timeout_seconds: float = Field(
+        default=180, gt=0, le=3600,
+        validation_alias=AliasChoices("PADDLE_OCR_TIMEOUT_SECONDS", "TASK_PADDLE_OCR_TIMEOUT_SECONDS"),
+    )
+    paddle_ocr_connect_timeout_seconds: float = Field(
+        default=5, gt=0, le=60,
+        validation_alias=AliasChoices("PADDLE_OCR_CONNECT_TIMEOUT_SECONDS", "TASK_PADDLE_OCR_CONNECT_TIMEOUT_SECONDS"),
+    )
     reminder_poll_seconds: int = 60
     reminder_start_hour: int = 9
     reminder_end_hour: int = 20

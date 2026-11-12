@@ -12,6 +12,7 @@ from .member_service import (
     commit_member, load_member, lock_membership, protect_access, revoke_sessions, set_member_enabled,
 )
 from .models import Staff, UserAccount, utcnow
+from .page_access import DesktopPage
 from .schemas import StaffRead
 
 router = APIRouter(prefix="/api/v1/admin/members", tags=["user-management"])
@@ -23,6 +24,7 @@ class AccountRead(BaseModel):
     role: Literal["admin", "member"]
     enabled: bool
     last_login_at: datetime | None
+    allowed_pages: list[DesktopPage] | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -36,6 +38,7 @@ class MemberCreate(BaseModel):
     username: str = Field(min_length=2, max_length=80)
     password: str = Field(min_length=8, max_length=128)
     role: Literal["admin", "member"] = "member"
+    allowed_pages: list[DesktopPage] | None = Field(default=None, max_length=10)
 
     @field_validator("name", "username", mode="before")
     @classmethod
@@ -51,6 +54,7 @@ class MemberUpdate(BaseModel):
     password: str | None = Field(default=None, min_length=8, max_length=128)
     role: Literal["admin", "member"] = "member"
     enabled: bool
+    allowed_pages: list[DesktopPage] | None = Field(default=None, max_length=10)
 
     @field_validator("name", "username", mode="before")
     @classmethod
@@ -70,7 +74,8 @@ def create_member(payload: MemberCreate, principal: AuthPrincipal = Depends(requ
     lock_membership(db, principal)
     staff = Staff(name=payload.name, enabled=True)
     staff.user = UserAccount(username=normalize_username(payload.username),
-                             password_hash=hash_password(payload.password), role=payload.role, enabled=True)
+                             password_hash=hash_password(payload.password), role=payload.role, enabled=True,
+                             allowed_pages=page_grants(payload.allowed_pages) if payload.role == "member" else None)
     db.add(staff)
     commit_member(db)
     return load_member(db, staff.id)
@@ -99,10 +104,16 @@ def update_member(staff_id: int, payload: MemberUpdate,
     if user.role != payload.role:
         revoke_sessions(db, staff)
     user.role = payload.role
+    if user.role == "member" and "allowed_pages" in payload.model_fields_set:
+        user.allowed_pages = page_grants(payload.allowed_pages)
     staff.name = payload.name
     set_member_enabled(db, staff, payload.enabled)
     commit_member(db)
     return load_member(db, staff_id)
+
+
+def page_grants(pages: list[DesktopPage] | None) -> list[DesktopPage] | None:
+    return list(dict.fromkeys(pages)) if pages is not None else None
 
 
 @router.delete("/{staff_id}", response_model=MemberRead)

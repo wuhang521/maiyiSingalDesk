@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArchiveRestore, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { memberApi, type ManagedMember, type MemberDraft } from "../lib/memberApi";
+import { DESKTOP_PAGES } from "../lib/pageAccess";
 import { taskApi } from "../lib/taskApi";
 import type { AppSettings, StaffPlatform } from "../types";
 import "./member-management.css";
@@ -11,7 +12,7 @@ interface Props {
   onMembersChanged: () => void;
 }
 
-const blankDraft: MemberDraft = { name: "", username: "", password: "", role: "member", enabled: true };
+const blankDraft: MemberDraft = { name: "", username: "", password: "", role: "member", enabled: true, allowed_pages: null };
 const platforms: Record<StaffPlatform, string> = { qq: "QQ", weixin: "微信", wecom: "企业微信" };
 type Filter = "current" | "enabled" | "disabled" | "removed";
 
@@ -92,6 +93,7 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
     setDraft(member ? {
       name: member.name, username: member.user?.username || "", password: "",
       role: member.user?.role || "member", enabled: isEnabled(member),
+      allowed_pages: member.user?.allowed_pages ?? null,
     } : { ...blankDraft });
   }
 
@@ -130,9 +132,20 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
       !window.confirm(`将“${editing.name}”设为${draft.role === "admin" ? "管理员" : "普通成员"}吗？该用户需要重新登录。`)) return;
     if (editing?.user && draft.password &&
       !window.confirm(`重置“${editing.name}”的密码吗？该用户已有的登录会话将失效。`)) return;
-    const payload = { ...draft, name: draft.name.trim(), username: draft.username?.trim(), password: draft.password || undefined };
+    const previousPages = editing?.user?.allowed_pages ?? null;
+    const nextPages = draft.allowed_pages ?? null;
+    const pagesChanged = previousPages === null || nextPages === null
+      ? previousPages !== nextPages
+      : previousPages.length !== nextPages.length || previousPages.some((page) => !nextPages.includes(page));
+    const payload = {
+      ...draft,
+      name: draft.name.trim(),
+      username: draft.username?.trim(),
+      password: draft.password || undefined,
+      allowed_pages: draft.role === "member" && (!editing?.user || pagesChanged) ? nextPages : undefined,
+    };
     void perform(() => editing ? memberApi.update(settings, editing.id, payload) : memberApi.create(settings, payload),
-      editing ? "用户设置已保存。权限或密码变更后需要重新登录。" : "用户已添加，可以使用新账号登录。请单独告知对方初始密码。");
+      editing ? "用户设置已保存。角色或密码变更后需要重新登录。" : "用户已添加，可以使用新账号登录。请单独告知对方初始密码。");
   }
 
   function remove(member: ManagedMember) {
@@ -142,7 +155,7 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
 
   return <section className="member-management" aria-label="用户管理">
     <div className="member-heading">
-      <div><h2><ShieldCheck size={20} aria-hidden="true" />用户管理</h2><p>管理人员加入、登录权限和消息接收渠道。当前 {currentCount} 名人员。</p></div>
+      <div><h2><ShieldCheck size={20} aria-hidden="true" />人员列表</h2><p>当前 {currentCount} 名人员。</p></div>
       <div className="member-actions">
         <button className="secondary-button" type="button" disabled={loading || busy} onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} />刷新用户</button>
         <button ref={createButton} className="primary-button" type="button" disabled={busy} onClick={() => openEditor(null)}><Plus size={16} />添加用户</button>
@@ -185,6 +198,30 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
             <label><span>登录账号</span><input required minLength={2} maxLength={80} autoComplete="off" readOnly={Boolean(editing?.user)} value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} /><small>{editing?.user ? "登录账号固定，用于识别成员身份。" : "2–80 个字符，不区分英文字母大小写。"}</small></label>
             {!self && <label><span>{editing?.user ? "重置密码（选填）" : "初始密码"}</span><input type="password" minLength={8} maxLength={128} required={!editing?.user} autoComplete="new-password" value={draft.password} placeholder={editing?.user ? "留空则保留原密码" : "至少 8 个字符"} onChange={(event) => setDraft({ ...draft, password: event.target.value })} /></label>}
             <label><span>用户角色</span><select value={draft.role} disabled={self} onChange={(event) => setDraft({ ...draft, role: event.target.value as MemberDraft["role"] })}><option value="member">普通成员</option><option value="admin">管理员</option></select><small>管理员可以添加用户、重置密码和调整权限。</small></label>
+            {draft.role === "admin" ? <p className="member-hint member-page-access">管理员可访问全部页面。</p> : (
+              <div className="member-page-access">
+                <label><span>页面访问方式</span><select value={draft.allowed_pages == null ? "default" : "custom"} onChange={(event) => {
+                  const allowedPages = event.target.value === "custom" ? editing?.user?.allowed_pages ?? [] : null;
+                  setDraft((current) => ({ ...current, allowed_pages: allowedPages }));
+                }}>
+                  <option value="default">使用默认页面</option><option value="custom">自定义页面</option>
+                </select></label>
+                {draft.allowed_pages != null ? <>
+                  <fieldset className="member-page-list">
+                    <legend>可访问页面</legend>
+                    {DESKTOP_PAGES.map(({ id, label }) => <label className="member-toggle" key={id}>
+                      <input type="checkbox" checked={draft.allowed_pages?.includes(id) ?? false} onChange={(event) => {
+                        const checked = event.target.checked;
+                        setDraft((current) => ({ ...current, allowed_pages: checked
+                          ? [...(current.allowed_pages ?? []), id]
+                          : (current.allowed_pages ?? []).filter((page) => page !== id) }));
+                      }} /><span>{label}</span>
+                    </label>)}
+                  </fieldset>
+                  <p className="member-hint">{draft.allowed_pages.length ? `允许访问 ${draft.allowed_pages.length} 个页面。` : "当前未选择页面。保存后该成员将无法访问任何业务页面。"}</p>
+                </> : <p className="member-hint">成员可以访问默认开放的业务页面。</p>}
+              </div>
+            )}
             {editing && <label className="member-toggle"><input type="checkbox" checked={draft.enabled} disabled={self} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} /><span>启用该用户</span></label>}
             {self && <p className="member-hint">当前登录账号的角色和启用状态受保护。</p>}
             <button className="primary-button member-save" type="submit" disabled={!draft.name.trim() || !draft.username?.trim()}>{busy ? "正在保存…" : editing ? "保存用户设置" : "确认添加"}</button>

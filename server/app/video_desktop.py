@@ -198,6 +198,11 @@ def create_app(configuration: DesktopConfiguration, *, clock: Callable[[], float
     def foreign_keys(connection, _record):
         connection.execute("PRAGMA foreign_keys=ON")
     Base.metadata.create_all(engine, tables=[Staff.__table__, UserAccount.__table__, VideoProject.__table__, VideoProjectReview.__table__, VideoProjectJob.__table__])
+    # Existing per-account SQLite files are opened directly by this sidecar.
+    with engine.begin() as connection:
+        columns = connection.exec_driver_sql("PRAGMA table_info(user_account)").mappings()
+        if not any(column["name"] == "allowed_pages" for column in columns):
+            connection.exec_driver_sql("ALTER TABLE user_account ADD COLUMN allowed_pages JSON")
     with Session(engine) as db:
         existing = list(db.scalars(select(UserAccount)))
         if existing and (len(existing) != 1 or existing[0].id != configuration.identity["id"]):

@@ -85,6 +85,39 @@ def test_member_cannot_use_admin_or_legacy_management_endpoints(api):
     assert client.get("/api/v1/staff", headers=member).status_code == 200
 
 
+def test_page_grants_apply_to_existing_sessions_and_keep_account_management_available(api):
+    client, _, identities = api
+    admin = identities[0][2]
+    member = create(client, admin)
+    token = login(client)
+    assert client.get("/api/v1/auth/me", headers=token).json()["allowed_pages"] is None
+    assert update(client, admin, member, allowed_pages=["tasks", "tasks"]).json()["user"]["allowed_pages"] == ["tasks"]
+    assert client.get("/api/v1/auth/me", headers=token).json()["allowed_pages"] == ["tasks"]
+    assert client.get("/api/v1/tasks", headers=token).status_code == 200
+    for path in ("/api/v1/articles", "/api/v1/channels", "/api/v1/knowledge/capabilities", "/api/v1/content/schema", "/api/v1/video/projects"):
+        assert client.get(path, headers=token).status_code == 403, path
+    assert update(client, admin, member, allowed_pages=["unknown"]).status_code == 422
+    assert update(client, admin, member).json()["user"]["allowed_pages"] == ["tasks"]
+    assert update(client, admin, member, allowed_pages=[]).json()["user"]["allowed_pages"] == []
+    assert client.get("/api/v1/tasks", headers=token).status_code == 403
+    assert client.get("/api/v1/auth/me", headers=token).status_code == 200
+    assert client.get("/api/v1/tasks", headers=admin).status_code == 200
+    assert update(client, admin, member, allowed_pages=None).json()["user"]["allowed_pages"] is None
+    assert client.get("/api/v1/tasks", headers=token).status_code == 200
+
+
+def test_shared_channel_reads_do_not_grant_channel_management(api):
+    client, _, identities = api
+    admin = identities[0][2]
+    member = create(client, admin)
+    token = login(client)
+    assert update(client, admin, member, allowed_pages=["inbox"]).status_code == 200
+    assert client.get("/api/v1/channels", headers=token).status_code == 200
+    assert client.get("/api/v1/articles", headers={**token, "X-SignalDesk-Operator": "permission-fixture"}).status_code == 200
+    response = client.post("/api/v1/channels", headers=token, json={"id": "test", "name": "Test"})
+    assert response.status_code == 403
+
+
 def test_create_is_atomic_and_does_not_expose_secrets(api):
     client, factory, identities = api
     admin = identities[0][2]

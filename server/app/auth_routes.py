@@ -29,6 +29,7 @@ def profile(user: UserAccount) -> UserProfile:
         display_name=user.staff.name,
         staff_id=user.staff_id,
         role=user.role,
+        allowed_pages=user.allowed_pages if user.role != "admin" else None,
     )
 
 

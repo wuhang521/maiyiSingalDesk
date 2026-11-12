@@ -1,0 +1,11 @@
+{
+  "signaldesk-channel-weixin": {
+    "secret": "REPLACE_WITH_SERVER_SIDE_SHARED_SECRET",
+    "profile": "REPLACE_WITH_EXISTING_WECHAT_PROFILE",
+    "events": ["channel.digest"],
+    "deliver": "weixin",
+    "deliver_only": true,
+    "deliver_extra": { "chat_id": "{recipient_id}" },
+    "prompt": "{message}"
+  }
+}

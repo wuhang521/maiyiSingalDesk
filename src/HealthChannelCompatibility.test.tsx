@@ -11,6 +11,7 @@ import type { FeedItem, SmartChannel } from "./types";
 
 vi.mock("./lib/authApi", () => ({ authApi: { me: vi.fn(), login: vi.fn(), logout: vi.fn() } }));
 type BridgeEvent = Parameters<Parameters<NonNullable<Window["signalDesk"]>["onMessage"]>[0]>[0];
+const testBackendUrl = "http://127.0.0.1:19998";
 const channel = (id: string, extra: Partial<SmartChannel> = {}): SmartChannel => ({
   id, name: "健康管理商业情报", description: "synthetic description", prompt: "synthetic rules", topic: "health-topic",
   server: "https://relay.example.test", authToken: "", schedule: "09:00", maxItems: 100,
@@ -31,7 +32,12 @@ function bridge() {
   return { value, emit: (event: BridgeEvent) => act(() => listener(event)) };
 }
 
-beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); Object.defineProperty(window, "signalDesk", { configurable: true, value: undefined }); });
+beforeEach(() => {
+  localStorage.clear();
+  vi.clearAllMocks();
+  vi.spyOn(articleApi, "channelDeliveryCatalog").mockRejectedValue(Object.assign(new Error("旧版后台"), { status: 404 }));
+  Object.defineProperty(window, "signalDesk", { configurable: true, value: undefined });
+});
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 it("starts and reloads duplicate old/new caches with one subscription and consumes alias/canonical replay once", async () => {
@@ -66,7 +72,7 @@ it("merges server aliases into an already selected local channel, keeps local-on
   const custom = channel("local-only", { name: "本机频道", topic: "", state: "draft" });
   localStorage.setItem("signaldesk.channels.v1", JSON.stringify([old, custom]));
   localStorage.setItem("signaldesk.feed.v1", JSON.stringify([article("服务器保留文章", "old-import"), article("本机独有文章", "local-only")]));
-  const session = { backendUrl: defaultSettings.backendUrl, accessToken: "synthetic-only", expiresAt: "2027-12-01T00:00:00Z", user: { id: 10, username: "synthetic", displayName: "合成用户", staffId: 10, role: "member" as const } };
+  const session = { backendUrl: testBackendUrl, accessToken: "synthetic-only", expiresAt: "2027-12-01T00:00:00Z", user: { id: 10, username: "synthetic", displayName: "合成用户", staffId: 10, role: "member" as const } };
   vi.mocked(authApi.me).mockResolvedValue(session.user);
   vi.spyOn(knowledgeApi, "capabilities").mockResolvedValue({ notifications_available: false, asr_enabled: false, ocr_enabled: false, max_upload_mb: 500, scope: "private", qa_mode: "extractive" });
   vi.spyOn(articleApi, "upsertChannel").mockResolvedValue({ id: "health" });
@@ -116,7 +122,7 @@ async function statusWorkspace(notifications = true) {
   localStorage.setItem("signaldesk.channels.v1", JSON.stringify([managed, custom]));
   localStorage.setItem("signaldesk.feed.v1", JSON.stringify([kept]));
   localStorage.setItem("signaldesk.trash.v1", JSON.stringify([{ id: trashed.id, item: trashed, deletedAt }]));
-  const session = { backendUrl: defaultSettings.backendUrl, accessToken: "synthetic-only", expiresAt: "2027-12-01T00:00:00Z", user: { id: 10, username: "synthetic", displayName: "合成用户", staffId: 10, role: "member" as const } };
+  const session = { backendUrl: testBackendUrl, accessToken: "synthetic-only", expiresAt: "2027-12-01T00:00:00Z", user: { id: 10, username: "synthetic", displayName: "合成用户", staffId: 10, role: "member" as const } };
   vi.mocked(authApi.me).mockResolvedValue(session.user);
   vi.spyOn(knowledgeApi, "capabilities").mockResolvedValue({ notifications_available: false, asr_enabled: false, ocr_enabled: false, max_upload_mb: 500, scope: "private", qa_mode: "extractive" });
   vi.spyOn(articleApi, "upsertChannel").mockResolvedValue({ id: "health" });

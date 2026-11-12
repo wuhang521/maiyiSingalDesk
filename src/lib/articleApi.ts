@@ -31,6 +31,41 @@ export interface ArticleStateUpdate {
   stateUpdatedAt: number;
 }
 
+export interface ChannelDeliveryDraft {
+  id?: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  schedule: string;
+  max_items: number;
+  source_type: "articles" | "website";
+  source_url: string | null;
+  selector: string | null;
+  include_terms: string[];
+  exclude_terms: string[];
+}
+
+export interface ChannelDeliveryConfig extends ChannelDeliveryDraft {
+  id: string;
+  subscribed: boolean;
+  can_delete?: boolean;
+  subscription_allowed?: boolean;
+}
+
+export interface ChannelDeliveryCatalog {
+  wechat_bound: boolean;
+  can_manage: boolean;
+  management_supported?: boolean;
+  audience_supported?: boolean;
+  archived_ids?: string[];
+  channels: ChannelDeliveryConfig[];
+}
+
+export interface ChannelAudience {
+  allowed_user_ids: number[] | null;
+  members: { id: number; name: string; username: string }[];
+}
+
 function endpoint(settings: AppSettings, path: string): string {
   return `${settings.backendUrl.trim().replace(/\/+$/, "")}${path}`;
 }
@@ -55,12 +90,13 @@ async function request<T>(
   if (!response.ok) {
     let detail = `后台返回 HTTP ${response.status}`;
     try {
-      const payload = (await response.json()) as { detail?: string };
-      if (payload.detail) detail = payload.detail;
+      const payload = (await response.json()) as { detail?: unknown };
+      if (typeof payload.detail === "string" && payload.detail) detail = payload.detail;
+      else if (Array.isArray(payload.detail) && path.startsWith("/api/v1/channel-subscriptions/")) detail = "频道配置格式有误，请检查表单后重试。";
     } catch {
       // 保留 HTTP 状态作为错误信息。
     }
-    throw new Error(detail);
+    throw Object.assign(new Error(detail), { status: response.status });
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -163,6 +199,49 @@ export const articleApi = {
   deleteChannel(settings: AppSettings, channelId: string, channels: readonly SmartChannel[] = []) {
     return request<void>(settings, `/api/v1/channels/${encodeURIComponent(canonicalChannelId(channelId, channels))}`, {
       method: "DELETE",
+    });
+  },
+
+  channelDeliveryCatalog(settings: AppSettings, signal?: AbortSignal) {
+    return request<ChannelDeliveryCatalog>(settings, "/api/v1/channel-subscriptions/catalog", { signal });
+  },
+
+  setChannelSubscription(settings: AppSettings, channelId: string, subscribed: boolean) {
+    return request<{ subscribed: boolean }>(settings,
+      `/api/v1/channel-subscriptions/${encodeURIComponent(channelId)}/subscription`,
+      { method: subscribed ? "PUT" : "DELETE" },
+    );
+  },
+
+  saveChannelDelivery(settings: AppSettings, draft: ChannelDeliveryDraft) {
+    return request<ChannelDeliveryConfig>(settings, "/api/v1/channel-subscriptions/configs", {
+      method: "POST", body: JSON.stringify(draft),
+    });
+  },
+
+  setChannelEnabled(settings: AppSettings, channelId: string, enabled: boolean) {
+    return request<ChannelDeliveryConfig>(settings, `/api/v1/channel-subscriptions/configs/${encodeURIComponent(channelId)}/enabled`, {
+      method: "PUT", body: JSON.stringify({ enabled }),
+    });
+  },
+
+  archiveChannelDelivery(settings: AppSettings, channelId: string) {
+    return request<void>(settings, `/api/v1/channel-subscriptions/configs/${encodeURIComponent(channelId)}`, { method: "DELETE" });
+  },
+
+  saveChannelOrder(settings: AppSettings, previousIds: string[], channelIds: string[]) {
+    return request<{ channel_ids: string[] }>(settings, "/api/v1/channel-subscriptions/order", {
+      method: "PUT", body: JSON.stringify({ previous_ids: previousIds, channel_ids: channelIds }),
+    });
+  },
+
+  channelAudience(settings: AppSettings, channelId: string, signal?: AbortSignal) {
+    return request<ChannelAudience>(settings, `/api/v1/channel-subscriptions/configs/${encodeURIComponent(channelId)}/audience`, { signal });
+  },
+
+  saveChannelAudience(settings: AppSettings, channelId: string, previousIds: number[] | null, allowedIds: number[] | null) {
+    return request<{ subscription_allowed: boolean }>(settings, `/api/v1/channel-subscriptions/configs/${encodeURIComponent(channelId)}/audience`, {
+      method: "PUT", body: JSON.stringify({ previous_user_ids: previousIds, allowed_user_ids: allowedIds }),
     });
   },
 };

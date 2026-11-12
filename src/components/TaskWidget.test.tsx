@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { authApi } from "../lib/authApi";
 import { taskApi } from "../lib/taskApi";
-import type { TaskItem } from "../types";
+import type { AuthUser, TaskItem } from "../types";
 import { selectWidgetTasks, TaskWidget } from "./TaskWidget";
 
 vi.mock("../lib/taskApi", () => ({
@@ -13,6 +14,9 @@ vi.mock("../lib/taskApi", () => ({
     createTask: vi.fn(),
   },
 }));
+vi.mock("../lib/authApi", () => ({ authApi: { me: vi.fn() } }));
+
+const administrator: AuthUser = { id: 3, username: "boss", displayName: "敏总", staffId: 7, role: "admin" };
 
 const currentTask: TaskItem = {
   id: 1,
@@ -40,6 +44,7 @@ const currentTask: TaskItem = {
 describe("桌面任务挂件", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(authApi.me).mockResolvedValue(administrator);
     window.localStorage.clear();
     window.localStorage.setItem(
       "signaldesk.settings.v1",
@@ -69,13 +74,7 @@ describe("桌面任务挂件", () => {
           backendUrl: "https://api.example.com",
           accessToken: "personal-token",
           expiresAt: "2026-11-16T08:00:00",
-          user: {
-            id: 3,
-            username: "boss",
-            displayName: "敏总",
-            staffId: 7,
-            role: "admin",
-          },
+          user: administrator,
         }),
         getTaskWidgetState: vi.fn().mockResolvedValue({ locked: false, collapsed: false }),
         setTaskWidgetLocked: vi.fn().mockResolvedValue(true),
@@ -161,6 +160,7 @@ describe("桌面任务挂件", () => {
   });
 
   it("查看他人任务时不能代替负责人完成", async () => {
+    const user = userEvent.setup();
     vi.mocked(taskApi.listTasks).mockResolvedValue({
       items: [
         currentTask,
@@ -171,11 +171,43 @@ describe("桌面任务挂件", () => {
 
     render(<TaskWidget />);
 
+    await screen.findByText("完成健康内容审核");
+    expect(screen.queryByText("杰哥的任务")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "显示全部人员" }));
     const otherTaskButton = await screen.findByRole("button", {
       name: "仅负责人可完成：杰哥的任务",
     });
     expect(otherTaskButton).toBeDisabled();
     expect(screen.getByRole("button", { name: "完成任务：完成健康内容审核" })).toBeEnabled();
+    expect(taskApi.listTasks).toHaveBeenLastCalledWith(expect.anything(), "active", "", undefined);
+  });
+
+  it("以服务端当前成员身份限制任务范围，即使本机旧会话仍标记为管理员", async () => {
+    vi.mocked(authApi.me).mockResolvedValue({ ...administrator, role: "member", allowedPages: ["tasks"] });
+    vi.mocked(taskApi.listTasks).mockResolvedValue({ items: [
+      currentTask, { ...currentTask, id: 2, title: "同事的任务", assignee_id: 8 },
+    ], total: 2 });
+    render(<TaskWidget />);
+
+    expect(await screen.findByText("完成健康内容审核")).toBeInTheDocument();
+    expect(screen.queryByText("同事的任务")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "显示全部人员" })).not.toBeInTheDocument();
+    expect(taskApi.listTasks).toHaveBeenLastCalledWith(expect.anything(), "active", "", 7);
+  });
+
+  it("权限撤销后刷新会清除已显示任务，并停止读取任务及快速创建", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.me).mockResolvedValue({ ...administrator, role: "member", allowedPages: ["tasks"] });
+    render(<TaskWidget />);
+    await screen.findByText("完成健康内容审核");
+
+    vi.mocked(authApi.me).mockResolvedValue({ ...administrator, role: "member", allowedPages: [] });
+    await user.click(screen.getByRole("button", { name: "刷新" }));
+    expect(await screen.findByText("当前账号无权访问任务中心")).toBeInTheDocument();
+    expect(screen.queryByText("完成健康内容审核")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "打开任务中心" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "快速添加任务" })).toBeDisabled();
+    expect(taskApi.listTasks).toHaveBeenCalledTimes(1);
   });
 
   it("展示全部未完成任务，并按逾期、今天、紧急、未来和未排期排序", () => {

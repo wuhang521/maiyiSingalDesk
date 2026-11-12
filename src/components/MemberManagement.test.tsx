@@ -88,13 +88,67 @@ describe("用户管理", () => {
 
   it("保存完成并解除忙碌状态后恢复到添加按钮的键盘焦点", async () => {
     const user = userEvent.setup();
-    vi.mocked(memberApi.update).mockResolvedValue(member);
+    const configuredMember: ManagedMember = { ...member, user: { ...member.user!, allowed_pages: ["tasks"] } };
+    vi.mocked(memberApi.list).mockResolvedValue([admin, configuredMember]);
+    vi.mocked(memberApi.update).mockResolvedValue(configuredMember);
     render(<MemberManagement settings={settings} currentStaffId={1} onMembersChanged={vi.fn()} />);
     await screen.findByText("测试成员");
     await user.click(screen.getByRole("button", { name: "管理 测试成员" }));
     await user.click(screen.getByRole("button", { name: "保存用户设置" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "添加用户" })).toHaveFocus());
     expect(screen.queryByLabelText("姓名或称呼")).not.toBeInTheDocument();
+    expect(vi.mocked(memberApi.update).mock.calls[0]?.[2].allowed_pages).toBeUndefined();
+  });
+
+  it("管理员可为每个普通成员保存所选页面，重新打开后显示持久化配置", async () => {
+    const user = userEvent.setup();
+    let savedMember = member;
+    vi.mocked(memberApi.list).mockImplementation(async () => [admin, savedMember]);
+    vi.mocked(memberApi.update).mockImplementation(async (_settings, _id, draft) => {
+      savedMember = { ...member, user: { ...member.user!, allowed_pages: draft.allowed_pages } };
+      return savedMember;
+    });
+    render(<MemberManagement settings={settings} currentStaffId={1} onMembersChanged={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "管理 管理员" }));
+    expect(screen.getByText("管理员可访问全部页面。")).toBeInTheDocument();
+    expect(screen.queryByLabelText("页面访问方式")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "管理 测试成员" }));
+    expect(screen.getByLabelText("页面访问方式")).toHaveValue("default");
+    await user.selectOptions(screen.getByLabelText("页面访问方式"), "custom");
+    await user.click(screen.getByRole("checkbox", { name: "任务中心" }));
+    await user.click(screen.getByRole("checkbox", { name: "知识库" }));
+    await user.click(screen.getByRole("button", { name: "保存用户设置" }));
+    expect(memberApi.update).toHaveBeenCalledWith(settings, 2, expect.objectContaining({ allowed_pages: ["tasks", "knowledge"] }));
+
+    const manageMember = screen.getByRole("button", { name: "管理 测试成员" });
+    await waitFor(() => expect(manageMember).toBeEnabled());
+    await user.click(manageMember);
+    expect(screen.getByLabelText("页面访问方式")).toHaveValue("custom");
+    expect(screen.getByRole("checkbox", { name: "任务中心" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "知识库" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "智能频道" })).not.toBeChecked();
+  });
+
+  it("明确区分零个页面与恢复默认页面", async () => {
+    const user = userEvent.setup();
+    const configuredMember: ManagedMember = { ...member, user: { ...member.user!, allowed_pages: ["tasks"] } };
+    vi.mocked(memberApi.list).mockResolvedValue([admin, configuredMember]);
+    vi.mocked(memberApi.update).mockResolvedValue(configuredMember);
+    render(<MemberManagement settings={settings} currentStaffId={1} onMembersChanged={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "管理 测试成员" }));
+    await user.click(screen.getByRole("checkbox", { name: "任务中心" }));
+    expect(screen.getByText(/无法访问任何业务页面/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保存用户设置" }));
+    expect(memberApi.update).toHaveBeenLastCalledWith(settings, 2, expect.objectContaining({ allowed_pages: [] }));
+
+    const manageMember = screen.getByRole("button", { name: "管理 测试成员" });
+    await waitFor(() => expect(manageMember).toBeEnabled());
+    await user.click(manageMember);
+    await user.selectOptions(screen.getByLabelText("页面访问方式"), "default");
+    expect(screen.queryByRole("group", { name: "可访问页面" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "保存用户设置" }));
+    expect(memberApi.update).toHaveBeenLastCalledWith(settings, 2, expect.objectContaining({ allowed_pages: null }));
   });
 
   it("绑定失败时在渠道区域聚焦错误并保留接收 ID", async () => {

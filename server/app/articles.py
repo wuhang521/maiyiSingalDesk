@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
-from .auth import require_api_key
-from .channel_aliases import aliases_for, is_managed, lock_managed_channels, resolve_channel_id
+from .auth import AuthPrincipal, require_api_key
+from .channel_aliases import active_channel_catalog, aliases_for, is_managed, lock_managed_channels, resolve_channel_id
+from .channel_subscription_models import ChannelPushConfig, ChannelSubscription
 from .database import get_db
 from .health_relay import relay as relay_health
 from .models import Article, ArticleUserState, SmartChannel, utcnow
@@ -58,12 +59,11 @@ def article_hash(item: ArticleInput) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
-def upsert_article(db: Session, item: ArticleInput) -> Article:
+def upsert_article(db: Session, item: ArticleInput, *, trusted_publisher: bool = False) -> Article:
     managed_input = is_managed(db, item.channelId)
-    article_query = select(Article).where(Article.id == item.id)
-    if managed_input:
-        article_query = article_query.with_for_update().execution_options(populate_existing=True)
-    article = db.scalar(article_query) if managed_input else db.get(Article, item.id)
+    canonical_id = resolve_channel_id(db, item.channelId)
+    article = db.scalar(select(Article).where(Article.id == item.id).with_for_update()
+                        .execution_options(populate_existing=True))
     content_hash = article_hash(item)
     if article is None:
         content_query = (
@@ -72,9 +72,12 @@ def upsert_article(db: Session, item: ArticleInput) -> Article:
             .order_by(Article.created_at)
             .limit(1)
         )
-        if managed_input:
-            content_query = content_query.with_for_update().execution_options(populate_existing=True)
-        article = db.scalar(content_query)
+        if trusted_publisher:
+            content_query = content_query.where(Article.channel_id == canonical_id)
+        article = db.scalar(content_query.with_for_update().execution_options(populate_existing=True))
+    if article is not None and article.channel_push_trusted and not trusted_publisher:
+        # A desktop cache import must never become content sent to other users.
+        return article
     # Managed originals are immutable to cache/push replays. In particular a
     # daily: prefix is not authority to move an existing article or retime it.
     # Personal state remains keyed by the original article ID in sync_articles.
@@ -83,10 +86,13 @@ def upsert_article(db: Session, item: ArticleInput) -> Article:
             lock_managed_channels(db, [article.channel_id])
             article = db.scalar(select(Article).where(Article.id == article.id)
                                 .with_for_update().execution_options(populate_existing=True))
+        if (trusted_publisher and article.channel_id == canonical_id and article.content_hash == content_hash
+                and article.published_at == from_milliseconds(item.timestamp)):
+            article.channel_push_trusted = True
         return article
     matched_existing_content = article is not None and article.id != item.id
     values = {
-        "channel_id": resolve_channel_id(db, item.channelId),
+        "channel_id": canonical_id,
         "title": item.title,
         "body": item.body,
         "source": item.source,
@@ -95,6 +101,7 @@ def upsert_article(db: Session, item: ArticleInput) -> Article:
         "priority": item.priority,
         "published_at": from_milliseconds(item.timestamp),
         "content_hash": content_hash,
+        "channel_push_trusted": trusted_publisher,
     }
     if matched_existing_content and not item.id.startswith("daily:"):
         values["channel_id"] = article.channel_id
@@ -187,9 +194,8 @@ def channel_read(channel: SmartChannel, aliases: list[str] | None = None) -> Sma
 
 @router.get("/channels", response_model=list[SmartChannelRead])
 def list_channels(db: Session = Depends(get_db)) -> list[SmartChannelRead]:
-    channels = db.scalars(select(SmartChannel).order_by(SmartChannel.name)).all()
-    return [channel_read(channel, aliases_for(db, channel.id)) for channel in channels
-            if resolve_channel_id(db, channel.id) == channel.id]
+    channels = db.scalars(active_channel_catalog()).all()
+    return [channel_read(channel, aliases_for(db, channel.id)) for channel in channels]
 
 
 @router.get('/health-relay/health/json')
@@ -203,15 +209,24 @@ async def health_relay(poll: str = Query(default='0',pattern='^[01]$'),
 def upsert_channel(
     payload: SmartChannelUpsert,
     preserve_connection: bool = False,
+    principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
+    if not can_edit_channels(principal):
+        # Older desktops POST cached channels before syncing their article inbox.
+        # Acknowledge that legacy request without accepting configuration changes.
+        return {"id": resolve_channel_id(db, payload.id)}
     managed = lock_managed_channels(db, [payload.id])
     if managed:
         # Startup cache synchronization and deliberate edits have the same old
         # POST shape. A managed publisher connection is changed by maintenance,
         # never overwritten by one of these indistinguishable cached payloads.
         return {"id": resolve_channel_id(db, payload.id)}
-    channel = db.get(SmartChannel, payload.id)
+    channel = db.get(SmartChannel, payload.id, with_for_update=True)
+    if channel is not None and (channel.archived_at is not None
+                                or db.get(ChannelPushConfig, channel.id, with_for_update=True)):
+        # Older ingest jobs register the channel before writing their articles.
+        return {"id": channel.id}
     values = {
         "name": payload.name.strip(),
         "description": payload.description,
@@ -241,28 +256,45 @@ def upsert_channel(
 
 
 @router.delete("/channels/{channel_id}", status_code=204, response_class=Response)
-def delete_channel(channel_id: str, db: Session = Depends(get_db)) -> Response:
+def delete_channel(channel_id: str, principal: AuthPrincipal = Depends(require_api_key),
+                   db: Session = Depends(get_db)) -> Response:
+    require_channel_editor(principal)
     managed = lock_managed_channels(db, [channel_id])
     if resolve_channel_id(db, channel_id) != channel_id:
         return Response(status_code=204)
     if managed:
         raise HTTPException(409, '此频道由服务器统一管理，不能从客户端删除')
-    channel = db.get(SmartChannel, channel_id)
+    channel = db.scalar(select(SmartChannel).where(SmartChannel.id == channel_id).with_for_update())
     if not channel:
         raise HTTPException(status_code=404, detail="频道不存在")
+    if channel.archived_at is not None:
+        return Response(status_code=204)
+    if channel.subscription_user_ids is not None or db.get(ChannelPushConfig, channel_id, with_for_update=True) or db.scalar(select(ChannelSubscription.user_id)
+            .where(ChannelSubscription.channel_id == channel_id).limit(1).with_for_update()) is not None:
+        raise HTTPException(409, "该频道已有推送配置或订阅，请在频道配置中暂停推送")
     db.delete(channel)
     db.commit()
     return Response(status_code=204)
 
 
+def require_channel_editor(principal: AuthPrincipal) -> None:
+    if not can_edit_channels(principal):
+        raise HTTPException(403, "只有管理员可以修改频道配置")
+
+
+def can_edit_channels(principal: AuthPrincipal) -> bool:
+    return principal.service or bool(principal.user and principal.user.role == "admin")
+
+
 @router.post("/articles/batch")
 def batch_articles(payload: ArticleBatchRequest, resolve_ids: bool = False,
+                    principal: AuthPrincipal = Depends(require_api_key),
                    db: Session = Depends(get_db)) -> dict[str, int | dict[str,str]]:
     unique_items = {item.id: item for item in payload.items if not managed_health_status(db, item)}
     lock_article_channels(db, unique_items.values())
     id_map = {}
     for item in unique_items.values():
-        article = upsert_article(db, item)
+        article = upsert_article(db, item, trusted_publisher=principal.service)
         if resolve_ids:
             id_map[item.id] = article.id
         db.flush()

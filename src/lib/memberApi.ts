@@ -1,4 +1,4 @@
-import type { AppSettings, StaffMember } from "../types";
+import type { AppSettings, DesktopPage, StaffMember } from "../types";
 
 export interface ManagedMember extends StaffMember {
   removed_at: string | null;
@@ -8,6 +8,7 @@ export interface ManagedMember extends StaffMember {
     role: "admin" | "member";
     enabled: boolean;
     last_login_at: string | null;
+    allowed_pages?: DesktopPage[] | null;
   } | null;
 }
 
@@ -17,6 +18,7 @@ export interface MemberDraft {
   password?: string;
   role: "admin" | "member";
   enabled: boolean;
+  allowed_pages?: DesktopPage[] | null;
 }
 
 async function request<T>(settings: AppSettings, path = "", init?: RequestInit): Promise<T> {
