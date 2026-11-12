@@ -1,6 +1,6 @@
 {
   "name": "signaldesk-desktop",
-  "version": "0.6.5",
+  "version": "0.6.7",
   "private": true,
   "description": "迈医协同企业智能协作桌面端。",
   "main": "electron/main.cjs",
@@ -16,7 +16,7 @@
     "build": "npm run typecheck && npm run test && npm run build:web",
     "icon:generate": "node scripts/generate-icon.cjs",
     "notices": "node scripts/generate-third-party-notices.mjs",
-    "dist:win": "npm run icon:generate && npm run build && npm run video:runtime && electron-builder --win nsis --x64 --publish never",
+    "dist:win": "npm run icon:generate && npm run build && npm run video:runtime && node scripts/archive-video-runtime.cjs && electron-builder --win nsis --x64 --publish never",
     "dist:mac": "npm run icon:generate && npm run build && electron-builder --mac dmg zip --x64 --arm64 --publish never",
     "e2e": "node scripts/e2e.mjs",
     "e2e:content": "node scripts/content-e2e.mjs",
@@ -25,11 +25,12 @@
     "test:knowledge-desktop": "node --test scripts/test-knowledge-watch.cjs",
     "smoke:package": "node scripts/package-smoke.mjs",
     "video:runtime": "python scripts/package-video-runtime.py --output artifacts/bundled-video-runtime",
-    "test:desktop": "node --test scripts/test-desktop-updater.cjs scripts/test-video-desktop.cjs"
+    "test:desktop": "node --test scripts/test-desktop-updater.cjs scripts/test-video-desktop.cjs scripts/test-video-runtime-update.cjs"
   },
   "dependencies": {
     "electron-updater": "6.8.9",
     "lucide-react": "^0.468.0",
+    "qrcode.react": "4.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
@@ -77,16 +78,7 @@
           ]
         }
       ],
-      "artifactName": "SignalDesk-Setup-${version}.${ext}",
-      "extraResources": [
-        {
-          "from": "artifacts/bundled-video-runtime",
-          "to": "video-runtime",
-          "filter": [
-            "**/*"
-          ]
-        }
-      ]
+      "artifactName": "SignalDesk-Setup-${version}.${ext}"
     },
     "mac": {
       "icon": "build/icon.png",
@@ -126,6 +118,7 @@
       ]
     },
     "nsis": {
+      "include": "build/installer.nsh",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,

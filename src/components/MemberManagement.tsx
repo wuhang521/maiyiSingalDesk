@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArchiveRestore, Plus, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { ArchiveRestore, Plus, QrCode, RefreshCw, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import { memberApi, type ManagedMember, type MemberDraft } from "../lib/memberApi";
 import { DESKTOP_PAGES } from "../lib/pageAccess";
 import { taskApi } from "../lib/taskApi";
 import type { AppSettings, StaffPlatform } from "../types";
+import { WechatPairingDialog } from "./WechatPairingDialog";
 import "./member-management.css";
 
 interface Props {
@@ -34,6 +35,7 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
   const [draft, setDraft] = useState<MemberDraft>(blankDraft);
   const [platform, setPlatform] = useState<StaffPlatform>("qq");
   const [recipient, setRecipient] = useState("");
+  const [pairingMember, setPairingMember] = useState<ManagedMember>();
   const nameInput = useRef<HTMLInputElement>(null);
   const createButton = useRef<HTMLButtonElement>(null);
   const channelErrorSummary = useRef<HTMLDivElement>(null);
@@ -230,6 +232,8 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
         {editing && <section className="member-channel-section" aria-label="消息接收渠道">
           <h4>消息接收渠道</h4><p>绑定后可通过对应消息账号处理任务。</p>
           {channelError && <div ref={channelErrorSummary} tabIndex={-1} className="member-feedback error" role="alert">{channelError}</div>}
+          {editing.user?.enabled && editing.enabled && <button className="secondary-button member-wechat-scan" type="button"
+            disabled={busy} onClick={() => setPairingMember(editing)}><QrCode size={16} />扫码绑定微信</button>}
           {editing.channels.length === 0 && <p className="member-hint">尚未绑定接收渠道。</p>}
           {editing.channels.map((channel) => <div className="member-channel" key={channel.id}><span>{platforms[channel.platform]}</span><code title={channel.recipient_id}>{channel.recipient_id}</code><button className="icon-button danger" type="button" disabled={busy} aria-label={`解绑 ${platforms[channel.platform]} ${channel.recipient_id}`} onClick={() => {
             if (window.confirm(`解除“${editing.name}”的${platforms[channel.platform]}绑定吗？`)) void perform(() => taskApi.deleteStaffChannel(settings, editing.id, channel.id), "渠道绑定已解除。", false);
@@ -245,6 +249,16 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
         </section>}
       </aside>}
     </div>
+    {pairingMember && <WechatPairingDialog member={pairingMember} settings={settings}
+      onClose={() => setPairingMember(undefined)} onBound={() => {
+        setPairingMember(undefined);
+        setChannelError("");
+        setNotice("微信已绑定。");
+        void load().then((refreshed) => {
+          setEditing((current) => current ? refreshed?.find((member) => member.id === current.id) || current : current);
+        });
+        onMembersChanged();
+      }} />}
   </section>;
 }
 

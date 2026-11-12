@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "version": "0.6.5",
+  "version": "0.6.7",
   "source_only": true,
-  "base_commit": "0bfed813e51b292bd99803f5f557f8ce4aa94a27",
+  "base_commit": "f312835bfd05e50cd287ccc23e0da3b0edc4942c",
   "files": [
     {
       "path": ".env.example",
@@ -103,6 +103,11 @@
       "path": ".github/release-notes/v0.6.5.md",
       "bytes": 719,
       "sha256": "d56fff1c735ee06c5f4bfa54ae022592e28ddd18fe4325f4b098ec9adce2c15e"
+    },
+    {
+      "path": ".github/release-notes/v0.6.7.md",
+      "bytes": 432,
+      "sha256": "e4eada468d095c29d1214baa2b116a419f2e30eeb2fec12ef84b34ec3c5a6743"
     },
     {
       "path": ".github/workflows/desktop-release.yml",
@@ -223,6 +228,16 @@
       "path": "build/icon.png",
       "bytes": 181494,
       "sha256": "21074c1f5ea45c402a52923e840b850d9c82daa04136a8475d036d789c58b7f8"
+    },
+    {
+      "path": "build/installer.nsh",
+      "bytes": 2790,
+      "sha256": "c8258d2b7ac968e9fd2e475dfd0b902665cbb82b5714ea23b260f70f8b352eef"
+    },
+    {
+      "path": "build/video-runtime-update.ps1",
+      "bytes": 3777,
+      "sha256": "0ecf3797d837511a0b1090eaaf936dd27af98195917e5b02564de3fdce321c0f"
     },
     {
       "path": "config/video-local.example.json",
@@ -676,13 +691,13 @@
     },
     {
       "path": "package-lock.json",
-      "bytes": 319254,
-      "sha256": "9f6acff5c48eab0314be4f40651fe8042a0e7fdbcee59dad38662796ef606305"
+      "bytes": 319679,
+      "sha256": "1e62b63b25c5e0c8184561da2a9bccce6f90af1570c0c1f560328fb7d04f4f5f"
     },
     {
       "path": "package.json",
-      "bytes": 4423,
-      "sha256": "4666d0e37040181f2b0abbad536ceee87cb4bbe96b36b0f410d4738721922af4"
+      "bytes": 4378,
+      "sha256": "b63e7d1f9d12035dcda417d581adac4bba49058d82fc968fec7cd25308b64713"
     },
     {
       "path": "release-guides/OPERATIONS-HELPERS.md",
@@ -743,6 +758,11 @@
       "path": "scripts/apply-health-collector-update.py",
       "bytes": 12545,
       "sha256": "8e151c79283130c049cadc36bebfc6bcdc3f27f824a34d11de06c0ba5e5a0b35"
+    },
+    {
+      "path": "scripts/archive-video-runtime.cjs",
+      "bytes": 1725,
+      "sha256": "7fecd58a88f4d35410ff2b3e797e823754dd06bc725c5f50a4f4ceddedd0833e"
     },
     {
       "path": "scripts/backup-knowledge-release.py",
@@ -1135,6 +1155,11 @@
       "sha256": "afe1798749002198012b8618752f3cd05c9bdf7d93f2d311cd29660ea86ba443"
     },
     {
+      "path": "scripts/test-video-runtime-update.cjs",
+      "bytes": 3757,
+      "sha256": "f6eb6f2a000ae2d3e16d14174c0a88a9329b91140d6d1cf5ded1d6856c666e36"
+    },
+    {
       "path": "scripts/test_activate_health_schedule.py",
       "bytes": 24784,
       "sha256": "cc0d264f4070dd0459e94e5655c2648829a1fc1e0f7d4a8b9a7db58a82e7b8d8"
@@ -1258,6 +1283,11 @@
       "path": "scripts/video-render-recovery-20261022.mjs",
       "bytes": 7216,
       "sha256": "2a808c5e4908343fd936ac5bc48654eb43f0bcd00bac47b66d54e8c5fbe203da"
+    },
+    {
+      "path": "scripts/video-runtime-upgrade-e2e.mjs",
+      "bytes": 8125,
+      "sha256": "bc66f4da3e2e5520474f0a106bc41a1a33109f0b3b9481ec831f7ccef28b3a72"
     },
     {
       "path": "server/.env.example",
@@ -2311,8 +2341,8 @@
     },
     {
       "path": "src/components/MemberManagement.tsx",
-      "bytes": 17704,
-      "sha256": "c496521c2d732fc8a421ce679c012ef76dc3f2094e947da860c46ce5ac2181ea"
+      "bytes": 18564,
+      "sha256": "ad7d28313556b11bfad99e39214dcbb873537274127a572ff61102b54beef808"
     },
     {
       "path": "src/components/MessageWorkspace.tsx",
@@ -2380,6 +2410,11 @@
       "sha256": "c8d140deb2049b4fed40475ab00151158c00b07daec8dafb9e4ec9e865bf9eb2"
     },
     {
+      "path": "src/components/WechatPairingDialog.tsx",
+      "bytes": 5991,
+      "sha256": "3ca08c4ba313bfb6f26034df66750d7d940870334c6f559f02772ac2de48bbfa"
+    },
+    {
       "path": "src/components/content/ContentFields.tsx",
       "bytes": 11916,
       "sha256": "54a2f5cdd525e997fb69034f0c56ba3e17b9a508b3cb68d1cd90d36cc595b44d"
@@ -2406,8 +2441,8 @@
     },
     {
       "path": "src/components/member-management.css",
-      "bytes": 6087,
-      "sha256": "dc98142184c7bdc1895851b96f9dbdfd3b9fb1bcfdfd38d05f0b57dd89cc6a6d"
+      "bytes": 7155,
+      "sha256": "65f7bbb3e4bbbdb65608825302527a627e43b8a31eb2ddd8981281c1855bb968"
     },
     {
       "path": "src/data/demo.ts",
@@ -2466,8 +2501,8 @@
     },
     {
       "path": "src/lib/memberApi.ts",
-      "bytes": 2327,
-      "sha256": "f4600fd87c446ee9a7ba5298a8ece6db06d1b2e6e7f3235d9cd5f07291da756e"
+      "bytes": 3471,
+      "sha256": "9dd346dc9663b9fff2eff2eb22c85c20972609a79d6c667cefa260b01f59f370"
     },
     {
       "path": "src/lib/ntfy.test.ts",
