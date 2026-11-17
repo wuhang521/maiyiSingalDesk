@@ -2,6 +2,7 @@ import type { AppSettings, DesktopPage, StaffMember } from "../types";
 
 export interface ManagedMember extends StaffMember {
   removed_at: string | null;
+  supervisor_id?: number | null;
   user: {
     id: number;
     username: string;
@@ -19,6 +20,7 @@ export interface MemberDraft {
   role: "admin" | "member";
   enabled: boolean;
   allowed_pages?: DesktopPage[] | null;
+  supervisor_id?: number | null;
 }
 
 export interface WechatPairing {

@@ -19,6 +19,26 @@ describe("用户管理", () => {
     vi.mocked(memberApi.list).mockResolvedValue([admin, member]);
   });
 
+  it("可保存或清空直属上级，无法选自己", async () => {
+    const user = userEvent.setup();
+    const assigned = { ...member, supervisor_id: admin.id };
+    vi.mocked(memberApi.list).mockResolvedValueOnce([admin, member]).mockResolvedValueOnce([admin, assigned]);
+    vi.mocked(memberApi.update).mockResolvedValue(assigned);
+    render(<MemberManagement settings={settings} currentStaffId={admin.id} onMembersChanged={vi.fn()} />);
+    await user.click(await screen.findByRole("button", { name: "管理 测试成员" }));
+    const supervisor = screen.getByRole("combobox", { name: /直属上级/ });
+    expect(within(supervisor).queryByRole("option", { name: "测试成员" })).not.toBeInTheDocument();
+    await user.selectOptions(supervisor, String(admin.id));
+    await user.click(screen.getByRole("button", { name: "保存用户设置" }));
+    expect(memberApi.update).toHaveBeenCalledWith(settings, member.id, expect.objectContaining({ supervisor_id: admin.id }));
+    await user.click(await screen.findByRole("button", { name: "管理 测试成员" }));
+    const assignedSupervisor = screen.getByRole("combobox", { name: /直属上级/ });
+    expect(assignedSupervisor).toHaveValue(String(admin.id));
+    await user.selectOptions(assignedSupervisor, "");
+    await user.click(screen.getByRole("button", { name: "保存用户设置" }));
+    expect(memberApi.update).toHaveBeenLastCalledWith(settings, member.id, expect.objectContaining({ supervisor_id: null }));
+  });
+
   it("添加用户失败时保留输入，并阻止重复提交", async () => {
     const user = userEvent.setup();
     let rejectSave!: (error: Error) => void;

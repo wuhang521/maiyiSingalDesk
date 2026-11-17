@@ -24,6 +24,9 @@ class Staff(Base):
     name: Mapped[str] = mapped_column(String(80), unique=True, index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     removed_at: Mapped[datetime | None] = mapped_column(DateTime6, nullable=True)
+    supervisor_id: Mapped[int | None] = mapped_column(
+        ForeignKey("staff.id", name="fk_staff_supervisor", ondelete="SET NULL"), index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

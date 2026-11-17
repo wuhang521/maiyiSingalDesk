@@ -56,7 +56,7 @@ describe("TaskWorkspace", () => {
     expect(screen.getByText(/尚未标注项目的任务统一显示为/)).toBeInTheDocument();
   });
 
-  it("普通成员只查询和展示分配给自己的任务，创建时固定分配给本人", async () => {
+  it("没有下级的成员只看到自己的任务，创建时固定分配给本人", async () => {
     const user = userEvent.setup();
     const settings = { ...defaultSettings, backendUrl: "https://task.example.com", backendAuthToken: "test-token" };
     vi.mocked(taskApi.createTask)
@@ -71,7 +71,7 @@ describe("TaskWorkspace", () => {
     expect(screen.queryByRole("button", { name: "用户管理" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "按人员" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("负责人筛选")).not.toBeInTheDocument();
-    expect(taskApi.listTasks).toHaveBeenCalledWith(settings, "active", "", 2);
+    expect(taskApi.listTasks).toHaveBeenCalledWith(settings, "active", "", undefined);
     expect(taskApi.listStaff).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "按项目" }));
@@ -86,6 +86,20 @@ describe("TaskWorkspace", () => {
     await waitFor(() => expect(screen.queryByLabelText("任务标题")).not.toBeInTheDocument());
     expect(taskApi.createTask).toHaveBeenCalledWith(settings, expect.objectContaining({ title: "自己的新任务", assignee_id: 2 }));
     expect(taskApi.createTask).toHaveBeenCalledTimes(2);
+  });
+
+  it("显示下级任务的负责人，且下级任务无操作按钮", async () => {
+    const settings = { ...defaultSettings, backendUrl: "https://task.example.com", backendAuthToken: "test-token" };
+    vi.mocked(taskApi.listTasks).mockResolvedValue({ items: tasks, total: tasks.length, has_reports: true });
+    render(<TaskWorkspace settings={settings} searchQuery="" currentStaffId={2} />);
+
+    expect(await screen.findByRole("heading", { name: "我的任务和下级任务" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "负责人" })).toBeInTheDocument();
+    const reportRow = screen.getByRole("row", { name: /整理客户反馈/ });
+    expect(reportRow).toHaveTextContent("仅查看");
+    expect(reportRow.querySelector("button")).toBeNull();
+    expect(screen.getByRole("row", { name: /准备运营素材/ }).querySelector('button[title="编辑"]')).toBeInTheDocument();
+    expect(taskApi.listStaff).not.toHaveBeenCalled();
   });
 });
 

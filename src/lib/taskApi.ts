@@ -11,6 +11,7 @@ import type {
 interface TaskListResponse {
   items: TaskItem[];
   total: number;
+  has_reports?: boolean;
 }
 
 interface StaffDraft {

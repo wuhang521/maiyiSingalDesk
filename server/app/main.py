@@ -26,6 +26,7 @@ from .knowledge_capture import router as knowledge_capture_router
 from .knowledge_costs import router as knowledge_costs_router
 from .member_service import (
     commit_member, load_member, lock_membership, protect_access, require_assignable, set_member_enabled,
+    staff_and_report_ids,
 )
 from .config import get_settings
 from .database import Base, engine, get_db
@@ -110,6 +111,14 @@ def task_scope(principal: AuthPrincipal) -> tuple[ColumnElement[bool], ...]:
     return () if staff_id is None else (Task.assignee_id == staff_id,)
 
 
+def task_read_scope(db: Session, principal: AuthPrincipal) -> tuple[tuple[ColumnElement[bool], ...], bool]:
+    staff_id = member_staff_id(principal)
+    if staff_id is None:
+        return (), False
+    visible = staff_and_report_ids(db, staff_id)
+    return (Task.assignee_id.in_(visible),), len(visible) > 1
+
+
 def require_task_assignment(principal: AuthPrincipal, assignee_id: int | None) -> None:
     staff_id = member_staff_id(principal)
     if staff_id is not None and assignee_id != staff_id:
@@ -124,11 +133,13 @@ def get_task(
     include_deleted: bool = False,
     for_update: bool = False,
     completing: bool = False,
+    include_reports: bool = False,
 ) -> Task:
+    filters = task_read_scope(db, principal)[0] if include_reports else task_scope(principal)
     query = (
         select(Task)
         .options(selectinload(Task.assignee))
-        .where(Task.id == task_id, *task_scope(principal))
+        .where(Task.id == task_id, *filters)
         .execution_options(populate_existing=True)
     )
     if not include_deleted:
@@ -325,7 +336,8 @@ def list_tasks(
     principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskList:
-    filters = list(task_scope(principal))
+    scope, has_reports = task_read_scope(db, principal)
+    filters = list(scope)
     if state == "active":
         filters.extend([Task.deleted_at.is_(None), Task.status != "done"])
     elif state == "done":
@@ -356,6 +368,7 @@ def list_tasks(
     return TaskList(
         items=[task_read(item) for item in db.scalars(query).all()],
         total=db.scalar(count_query) or 0,
+        has_reports=has_reports,
     )
 
 
@@ -486,10 +499,11 @@ def read_task_by_number(
     db: Session = Depends(get_db),
 ) -> TaskRead:
     normalized = task_no.strip().upper()
+    scope, _ = task_read_scope(db, principal)
     query = (
         select(Task)
         .options(selectinload(Task.assignee))
-        .where(Task.task_no == normalized, *task_scope(principal))
+        .where(Task.task_no == normalized, *scope)
     )
     if not include_deleted:
         query = query.where(Task.deleted_at.is_(None))
@@ -569,7 +583,7 @@ def read_task(
     principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> TaskRead:
-    return task_read(get_task(db, task_id, principal))
+    return task_read(get_task(db, task_id, principal, include_reports=True))
 
 
 @app.patch("/api/v1/tasks/{task_id}", response_model=TaskRead)
@@ -683,11 +697,12 @@ def list_task_events(
     principal: AuthPrincipal = Depends(require_api_key),
     db: Session = Depends(get_db),
 ) -> list[TaskEvent]:
+    scope, _ = task_read_scope(db, principal)
     events = db.scalars(
         select(TaskEvent)
         .select_from(Task)
         .outerjoin(TaskEvent, TaskEvent.task_id == Task.id)
-        .where(Task.id == task_id, *task_scope(principal))
+        .where(Task.id == task_id, *scope)
         .order_by(TaskEvent.created_at.desc())
     ).all()
     if not events:

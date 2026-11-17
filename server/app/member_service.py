@@ -8,9 +8,52 @@ from .auth import AuthPrincipal
 from .models import NotificationOutbox, Staff, UserAccount, UserSession
 
 
+def set_supervisor(db: Session, staff: Staff, supervisor_id: int | None) -> None:
+    """Validate a reporting change while the membership rows are locked."""
+    if supervisor_id is None:
+        staff.supervisor_id = None
+        return
+    supervisor = db.get(Staff, supervisor_id, with_for_update=True, populate_existing=True)
+    account_enabled = select(UserAccount.id).where(
+        UserAccount.staff_id == supervisor_id, UserAccount.enabled.is_(True),
+    ).with_for_update()
+    if not supervisor or not supervisor.enabled or supervisor.removed_at or not db.scalar(account_enabled):
+        raise HTTPException(422, "请选择已启用且已开通登录的直属上级")
+    visited = {staff.id}
+    ancestor = supervisor
+    while ancestor:
+        if ancestor.id in visited:
+            raise HTTPException(422, "直属上级不能是本人或任何下级")
+        visited.add(ancestor.id)
+        ancestor_id = ancestor.supervisor_id
+        ancestor = db.get(Staff, ancestor_id, with_for_update=True, populate_existing=True) if ancestor_id is not None else None
+    staff.supervisor_id = supervisor_id
+
+
+def staff_and_report_ids(db: Session, supervisor_id: int) -> set[int]:
+    reports: dict[int, list[int]] = {}
+    rows = db.execute(select(Staff.id, Staff.supervisor_id).where(
+        Staff.supervisor_id.is_not(None), Staff.removed_at.is_(None),
+    ))
+    for staff_id, parent_id in rows:
+        reports.setdefault(parent_id, []).append(staff_id)
+    visible = {supervisor_id}
+    pending = list(reports.get(supervisor_id, ()))
+    while pending:
+        staff_id = pending.pop()
+        if staff_id not in visible:
+            visible.add(staff_id)
+            pending.extend(reports.get(staff_id, ()))
+    return visible
+
+
 def lock_membership(db: Session, principal: AuthPrincipal) -> None:
     # Stable lock ordering serializes role/availability changes in MySQL, including
     # two administrators trying to remove each other or the last active admin.
+    if db.get_bind().dialect.name == "sqlite":
+        connection = db.connection()
+        if not connection.connection.driver_connection.in_transaction:
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
     db.scalars(select(UserAccount).order_by(UserAccount.id).with_for_update()
                .execution_options(populate_existing=True)).all()
     db.scalars(select(Staff).order_by(Staff.id).with_for_update()
@@ -21,9 +64,11 @@ def lock_membership(db: Session, principal: AuthPrincipal) -> None:
             raise HTTPException(403, "管理员身份已失效，请重新登录")
 
 
-def load_member(db: Session, staff_id: int, *, allow_removed: bool = False) -> Staff:
-    staff = db.scalar(select(Staff).options(selectinload(Staff.user), selectinload(Staff.channels))
-                      .where(Staff.id == staff_id))
+def load_member(db: Session, staff_id: int, *, allow_removed: bool = False, lock: bool = False) -> Staff:
+    query = select(Staff).options(selectinload(Staff.user), selectinload(Staff.channels)).where(Staff.id == staff_id)
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    staff = db.scalar(query)
     if not staff:
         raise HTTPException(404, "人员不存在")
     if staff.removed_at and not allow_removed:

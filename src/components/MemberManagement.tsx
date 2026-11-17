@@ -13,7 +13,7 @@ interface Props {
   onMembersChanged: () => void;
 }
 
-const blankDraft: MemberDraft = { name: "", username: "", password: "", role: "member", enabled: true, allowed_pages: null };
+const blankDraft: MemberDraft = { name: "", username: "", password: "", role: "member", enabled: true, allowed_pages: null, supervisor_id: null };
 const platforms: Record<StaffPlatform, string> = { qq: "QQ", weixin: "微信", wecom: "企业微信" };
 type Filter = "current" | "enabled" | "disabled" | "removed";
 
@@ -87,6 +87,11 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
   }), [members, search, filter]);
   const currentCount = members.filter((member) => !member.removed_at).length;
   const self = editing?.id === currentStaffId;
+  const supervisorOptions = members.filter((member) =>
+    member.id !== editing?.id && !member.removed_at && member.enabled && member.user?.enabled);
+  const unavailableSupervisor = draft.supervisor_id != null && !supervisorOptions.some((member) => member.id === draft.supervisor_id)
+    ? members.find((member) => member.id === draft.supervisor_id)?.name || "原直属上级"
+    : null;
 
   function openEditor(member: ManagedMember | null) {
     if (busy) return;
@@ -96,6 +101,7 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
       name: member.name, username: member.user?.username || "", password: "",
       role: member.user?.role || "member", enabled: isEnabled(member),
       allowed_pages: member.user?.allowed_pages ?? null,
+      supervisor_id: member.supervisor_id ?? null,
     } : { ...blankDraft });
   }
 
@@ -145,6 +151,7 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
       username: draft.username?.trim(),
       password: draft.password || undefined,
       allowed_pages: draft.role === "member" && (!editing?.user || pagesChanged) ? nextPages : undefined,
+      supervisor_id: (editing?.supervisor_id ?? null) !== draft.supervisor_id ? draft.supervisor_id : undefined,
     };
     void perform(() => editing ? memberApi.update(settings, editing.id, payload) : memberApi.create(settings, payload),
       editing ? "用户设置已保存。角色或密码变更后需要重新登录。" : "用户已添加，可以使用新账号登录。请单独告知对方初始密码。");
@@ -200,6 +207,14 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
             <label><span>登录账号</span><input required minLength={2} maxLength={80} autoComplete="off" readOnly={Boolean(editing?.user)} value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} /><small>{editing?.user ? "登录账号固定，用于识别成员身份。" : "2–80 个字符，不区分英文字母大小写。"}</small></label>
             {!self && <label><span>{editing?.user ? "重置密码（选填）" : "初始密码"}</span><input type="password" minLength={8} maxLength={128} required={!editing?.user} autoComplete="new-password" value={draft.password} placeholder={editing?.user ? "留空则保留原密码" : "至少 8 个字符"} onChange={(event) => setDraft({ ...draft, password: event.target.value })} /></label>}
             <label><span>用户角色</span><select value={draft.role} disabled={self} onChange={(event) => setDraft({ ...draft, role: event.target.value as MemberDraft["role"] })}><option value="member">普通成员</option><option value="admin">管理员</option></select><small>管理员可以添加用户、重置密码和调整权限。</small></label>
+            <label><span>直属上级</span><select value={draft.supervisor_id ?? ""} onChange={(event) => {
+              const supervisorId = event.target.value;
+              setDraft((current) => ({ ...current, supervisor_id: supervisorId ? Number(supervisorId) : null }));
+            }}>
+              <option value="">无直属上级</option>
+              {unavailableSupervisor && <option disabled value={draft.supervisor_id ?? ""}>{unavailableSupervisor}（不可选）</option>}
+              {supervisorOptions.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </select><small>上级可在任务中心查看该人员及其下级的任务。</small></label>
             {draft.role === "admin" ? <p className="member-hint member-page-access">管理员可访问全部页面。</p> : (
               <div className="member-page-access">
                 <label><span>页面访问方式</span><select value={draft.allowed_pages == null ? "default" : "custom"} onChange={(event) => {

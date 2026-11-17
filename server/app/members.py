@@ -10,6 +10,7 @@ from .auth import AuthPrincipal, hash_password, normalize_username, require_staf
 from .database import get_db
 from .member_service import (
     commit_member, load_member, lock_membership, protect_access, revoke_sessions, set_member_enabled,
+    set_supervisor,
 )
 from .models import Staff, UserAccount, utcnow
 from .page_access import DesktopPage
@@ -30,6 +31,7 @@ class AccountRead(BaseModel):
 
 class MemberRead(StaffRead):
     removed_at: datetime | None
+    supervisor_id: int | None
     user: AccountRead | None
 
 
@@ -39,6 +41,7 @@ class MemberCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     role: Literal["admin", "member"] = "member"
     allowed_pages: list[DesktopPage] | None = Field(default=None, max_length=10)
+    supervisor_id: int | None = Field(default=None, gt=0)
 
     @field_validator("name", "username", mode="before")
     @classmethod
@@ -55,6 +58,7 @@ class MemberUpdate(BaseModel):
     role: Literal["admin", "member"] = "member"
     enabled: bool
     allowed_pages: list[DesktopPage] | None = Field(default=None, max_length=10)
+    supervisor_id: int | None = Field(default=None, gt=0)
 
     @field_validator("name", "username", mode="before")
     @classmethod
@@ -73,6 +77,7 @@ def create_member(payload: MemberCreate, principal: AuthPrincipal = Depends(requ
                   db: Session = Depends(get_db)):
     lock_membership(db, principal)
     staff = Staff(name=payload.name, enabled=True)
+    set_supervisor(db, staff, payload.supervisor_id)
     staff.user = UserAccount(username=normalize_username(payload.username),
                              password_hash=hash_password(payload.password), role=payload.role, enabled=True,
                              allowed_pages=page_grants(payload.allowed_pages) if payload.role == "member" else None)
@@ -85,8 +90,10 @@ def create_member(payload: MemberCreate, principal: AuthPrincipal = Depends(requ
 def update_member(staff_id: int, payload: MemberUpdate,
                   principal: AuthPrincipal = Depends(require_staff_admin), db: Session = Depends(get_db)):
     lock_membership(db, principal)
-    staff = load_member(db, staff_id)
+    staff = load_member(db, staff_id, lock=True)
     user = staff.user
+    if "supervisor_id" in payload.model_fields_set and payload.supervisor_id != staff.supervisor_id:
+        set_supervisor(db, staff, payload.supervisor_id)
     if not payload.enabled or (user and user.role == "admin" and payload.role != "admin"):
         protect_access(db, staff, principal)
     if user and payload.username is not None and normalize_username(payload.username) != user.username:

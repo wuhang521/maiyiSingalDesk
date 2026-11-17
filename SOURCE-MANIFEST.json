@@ -1,8 +1,8 @@
 {
   "schema": 1,
-  "version": "0.6.7",
+  "version": "0.6.8",
   "source_only": true,
-  "base_commit": "f312835bfd05e50cd287ccc23e0da3b0edc4942c",
+  "base_commit": "874e1d5117727b7e1450e79752df568b311e74a9",
   "files": [
     {
       "path": ".env.example",
@@ -108,6 +108,11 @@
       "path": ".github/release-notes/v0.6.7.md",
       "bytes": 432,
       "sha256": "e4eada468d095c29d1214baa2b116a419f2e30eeb2fec12ef84b34ec3c5a6743"
+    },
+    {
+      "path": ".github/release-notes/v0.6.8.md",
+      "bytes": 324,
+      "sha256": "27a3211ccfec0e4ee8cee87b065208957f4c8c0793b4b3f1264056ec5677c269"
     },
     {
       "path": ".github/workflows/desktop-release.yml",
@@ -692,12 +697,12 @@
     {
       "path": "package-lock.json",
       "bytes": 319679,
-      "sha256": "1e62b63b25c5e0c8184561da2a9bccce6f90af1570c0c1f560328fb7d04f4f5f"
+      "sha256": "e8b871dc3f7e57c595960234814464a7c6aaf6bbb437398d981c1b4cfc51ccae"
     },
     {
       "path": "package.json",
       "bytes": 4378,
-      "sha256": "b63e7d1f9d12035dcda417d581adac4bba49058d82fc968fec7cd25308b64713"
+      "sha256": "6da89a3bbb89153709370a993ce697a8295ddd524edd9e875e91a3044e5dc9f9"
     },
     {
       "path": "release-guides/OPERATIONS-HELPERS.md",
@@ -991,8 +996,8 @@
     },
     {
       "path": "scripts/member-e2e.mjs",
-      "bytes": 11931,
-      "sha256": "9f051091441cf58984b1ca1b61e7e6bbb14804eebb144ce9a5e0561e6441c122"
+      "bytes": 13923,
+      "sha256": "991d86484b078ecd8f130075216458e5e662cbe7f1d73c85b9c0251b2e71c91d"
     },
     {
       "path": "scripts/package-knowledge-delivery.py",
@@ -1516,23 +1521,23 @@
     },
     {
       "path": "server/app/main.py",
-      "bytes": 23956,
-      "sha256": "fa3398f3fcbfcaa8808599ca27aa950bb7ec4edb19030a355caceb065b4e29a2"
+      "bytes": 24565,
+      "sha256": "6763a73f76701882a78195bab1b7f5d092776a22a96cc03584997d9a1bfa4900"
     },
     {
       "path": "server/app/member_service.py",
-      "bytes": 3749,
-      "sha256": "3ec5f8eeffa8e1cda91d8fe85844016aea304342e7e0ed88f3c34ee2dfbf334f"
+      "bytes": 5818,
+      "sha256": "1e7347dc9a0b59f7a35c8b6437f82582626f76af32806d4276ad0f20698ddd25"
     },
     {
       "path": "server/app/members.py",
-      "bytes": 6087,
-      "sha256": "6b207b1ccb07f6294d87f6d43055fd54de20615d250b6dc3efb81695efd71494"
+      "bytes": 6475,
+      "sha256": "4db3e6e1b937b427ee152d1d8f92f3fdca701e3603a6683715d75cc2db860eb5"
     },
     {
       "path": "server/app/models.py",
-      "bytes": 10301,
-      "sha256": "2f4f8fd51eb25b1597d7741f71c502b077c4647e15b3663ea416a3575f083956"
+      "bytes": 10455,
+      "sha256": "29223c5f0077cc96af3af1ec2571f664a9af02b76aee5b0206b6d58c1f8d9261"
     },
     {
       "path": "server/app/page_access.py",
@@ -1546,8 +1551,8 @@
     },
     {
       "path": "server/app/schemas.py",
-      "bytes": 7185,
-      "sha256": "29737acfb379afd5a1355d616a138ee51891127f8299ebe9c16050b295a2e7ea"
+      "bytes": 7215,
+      "sha256": "ac8c4429d9b6f4f304daaaaaa9a05828b740b05ab3ac13946cf70264792ea68b"
     },
     {
       "path": "server/app/video.py",
@@ -1768,6 +1773,16 @@
       "path": "server/migrations/versions/20261112_02_channel_subscription_audience.py",
       "bytes": 800,
       "sha256": "c0127c85bfd0117ba6e07605072dbed1823d9e7c7f03bf9003c4668a55ae1bfb"
+    },
+    {
+      "path": "server/migrations/versions/20261112_03_wechat_pairing.py",
+      "bytes": 1272,
+      "sha256": "13237bfd51228f11a397ae9f6dd401b47473fcc8e69df66c3cfd42ad8062440c"
+    },
+    {
+      "path": "server/migrations/versions/20261117_01_staff_supervisor.py",
+      "bytes": 774,
+      "sha256": "b82aa85ba0698d9bb2ed0fb71b436492b3354dbce1191cf169c2aede22dcb591"
     },
     {
       "path": "server/requirements-silk.txt",
@@ -2031,8 +2046,8 @@
     },
     {
       "path": "server/tests/test_member_migration.py",
-      "bytes": 1293,
-      "sha256": "4bffd557cccc5823192015d127cd8b145b50d62f0d5e8f117e875c7d72cdb11e"
+      "bytes": 3336,
+      "sha256": "4847bed52b954c60251b42fd6d69cb23f36a59a427407251eb618e427c499577"
     },
     {
       "path": "server/tests/test_members.py",
@@ -2041,8 +2056,8 @@
     },
     {
       "path": "server/tests/test_task_scope.py",
-      "bytes": 10475,
-      "sha256": "3226f12d3ed35d26ecdf707b64e4de022cea71f24cb05f6c2531f68a57af39bc"
+      "bytes": 13746,
+      "sha256": "c0392f6c767e27dff9ccccadf6b51e58eee4fb3a32c8ea6c3380272786165cb7"
     },
     {
       "path": "server/tests/test_video_api.py",
@@ -2336,13 +2351,13 @@
     },
     {
       "path": "src/components/MemberManagement.test.tsx",
-      "bytes": 11370,
-      "sha256": "ff585205160b76ff9cb603efad5d22470bb9376ab596d13f6e1df4dc0d2fd8ef"
+      "bytes": 12866,
+      "sha256": "13d51721df36906c367749fc0e5fe1412f77a817450011adeb8f083c93a1cceb"
     },
     {
       "path": "src/components/MemberManagement.tsx",
-      "bytes": 18564,
-      "sha256": "ad7d28313556b11bfad99e39214dcbb873537274127a572ff61102b54beef808"
+      "bytes": 19853,
+      "sha256": "fc59c4c416a3a1575c004eaf52c8f2480b6ffd0534816c26d2dfd0fe0f001d48"
     },
     {
       "path": "src/components/MessageWorkspace.tsx",
@@ -2376,13 +2391,13 @@
     },
     {
       "path": "src/components/TaskWorkspace.test.tsx",
-      "bytes": 5665,
-      "sha256": "14fa3bd8da3e45611d5b62f7308e6afd56744ced08070d69e21858b40a373b1b"
+      "bytes": 6642,
+      "sha256": "82ad65bcb53aa6f8d4abb273214c43c1af30a3ec6344dff7dab5e82ffa5e7f3d"
     },
     {
       "path": "src/components/TaskWorkspace.tsx",
-      "bytes": 15287,
-      "sha256": "a5e76689734f7e7f11333a77064a791ab10c3ba6337a317e9fa4259c9a375331"
+      "bytes": 15818,
+      "sha256": "9f9bc9477540db767753e972bfae17f258fdf7e493d793023f9086811780c0a2"
     },
     {
       "path": "src/components/Toast.tsx",
@@ -2501,8 +2516,8 @@
     },
     {
       "path": "src/lib/memberApi.ts",
-      "bytes": 3471,
-      "sha256": "9dd346dc9663b9fff2eff2eb22c85c20972609a79d6c667cefa260b01f59f370"
+      "bytes": 3537,
+      "sha256": "1451d4ddcb0150dcd9adbca682ea1a8b4895609d07bb6ecbd13a463c3d0a776d"
     },
     {
       "path": "src/lib/ntfy.test.ts",
@@ -2526,8 +2541,8 @@
     },
     {
       "path": "src/lib/taskApi.ts",
-      "bytes": 4877,
-      "sha256": "ead667b0a5e5f0df764be9a7259f9ee7f87dcfb825f4539c070bf3b70a9a05ee"
+      "bytes": 4729,
+      "sha256": "36b1a3bc2a964384c36d4e395b8c483bff67e852f180635cdb72c0bc51cb5120"
     },
     {
       "path": "src/lib/trash.test.ts",

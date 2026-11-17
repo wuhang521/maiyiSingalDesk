@@ -56,6 +56,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
   const [assigneeId, setAssigneeId] = useState(0);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [hasReports, setHasReports] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -64,6 +65,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
 
   const configured = Boolean(settings.backendUrl.trim() && settings.backendAuthToken.trim());
   const canReadTasks = configured && (isAdmin || Boolean(currentStaffId));
+  const showAssignee = isAdmin || hasReports;
 
   const load = useCallback(async () => {
     if (!canReadTasks) return;
@@ -72,11 +74,17 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
     setError("");
     try {
       const [taskResult, staffResult] = await Promise.all([
-        taskApi.listTasks(settings, state, searchQuery, isAdmin ? assigneeId || undefined : currentStaffId),
+        taskApi.listTasks(settings, state, searchQuery, isAdmin ? assigneeId || undefined : undefined),
         isAdmin ? taskApi.listStaff(settings) : Promise.resolve([]),
       ]);
       if (sequence !== requestSequence.current) return;
-      setTasks(isAdmin ? taskResult.items : taskResult.items.filter((task) => task.assignee_id === currentStaffId));
+      setHasReports(Boolean(taskResult.has_reports));
+      if (!isAdmin && !taskResult.has_reports) {
+        setTaskView((view) => view === "assignee" ? "all" : view);
+      }
+      setTasks(isAdmin || taskResult.has_reports
+        ? taskResult.items
+        : taskResult.items.filter((task) => task.assignee_id === currentStaffId));
       if (isAdmin) setStaff(staffResult);
     } catch (caught) {
       if (sequence === requestSequence.current) setError(errorMessage(caught));
@@ -143,7 +151,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
   return (
     <div className="task-page">
       <div className="task-toolbar">
-        <h2 className="task-toolbar-title">{isAdmin ? "任务列表" : "我的任务"}</h2>
+        <h2 className="task-toolbar-title">{isAdmin ? "任务列表" : hasReports ? "我的任务和下级任务" : "我的任务"}</h2>
         <div className="task-toolbar-actions">
           <button
             className="icon-button"
@@ -184,7 +192,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
           >
             <LayoutList size={14} />全部
           </button>
-          {isAdmin && <button
+          {showAssignee && <button
             className={taskView === "assignee" ? "active" : ""}
             type="button"
             onClick={() => setTaskView("assignee")}
@@ -200,7 +208,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
           </button>
         </div>
         <span>
-          {taskView === "all" && (isAdmin ? "查看完整任务明细和操作" : "查看分配给我的任务")}
+          {taskView === "all" && (isAdmin ? "查看完整任务明细和操作" : hasReports ? "下级任务仅供查看" : "查看分配给我的任务")}
           {taskView === "assignee" && "按负责人快速查看任务分布"}
           {taskView === "project" && "按任务中的项目名称归类"}
         </span>
@@ -230,7 +238,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
             <thead>
               <tr>
                 <th>编号 / 任务</th>
-                {isAdmin && <th>负责人</th>}
+                {showAssignee && <th>负责人</th>}
                 <th>状态</th>
                 <th>截止时间</th>
                 <th>提醒</th>
@@ -249,12 +257,12 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
                       </div>
                     </div>
                   </td>
-                  {isAdmin && <td>{task.assignee_name}</td>}
+                  {showAssignee && <td>{task.assignee_name}</td>}
                   <td><StatusBadge task={task} /></td>
                   <td>{formatDate(task.due_at)}</td>
                   <td>{formatReminder(task)}</td>
                   <td>
-                    <div className="task-row-actions">
+                    {isAdmin || task.assignee_id === currentStaffId ? <div className="task-row-actions">
                       {!task.deleted_at && task.status !== "done" && task.assignee_id === currentStaffId && (
                         <button
                           type="button"
@@ -297,7 +305,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
                           onClick={() => perform(() => taskApi.action(settings, task.id, "restore"))}
                         ><ArchiveRestore size={15} /></button>
                       )}
-                    </div>
+                    </div> : <span className="task-read-only">仅查看</span>}
                   </td>
                 </tr>
               ))}
@@ -333,7 +341,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
                 <div className="task-preview-list">
                   {group.tasks.map((task) => (
                     <article
-                      className={`task-preview-row${taskView === "project" && isAdmin ? " with-owner" : ""}`}
+                      className={`task-preview-row${taskView === "project" && showAssignee ? " with-owner" : ""}`}
                       key={task.id}
                     >
                       <span className={`priority-dot p${task.priority}`} />
@@ -341,7 +349,7 @@ function ScopedTaskWorkspace({ settings, searchQuery, currentStaffId, isAdmin = 
                         <strong>{task.title}</strong>
                         <span>{task.task_no}{task.content ? ` · ${task.content}` : ""}</span>
                       </div>
-                      {taskView === "project" && isAdmin && (
+                      {taskView === "project" && showAssignee && (
                         <span className="task-preview-owner"><UserRound size={13} />{task.assignee_name}</span>
                       )}
                       <div className="task-preview-meta">

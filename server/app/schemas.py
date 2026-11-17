@@ -142,6 +142,7 @@ class TaskRead(BaseModel):
 class TaskList(BaseModel):
     items: list[TaskRead]
     total: int
+    has_reports: bool = False
 
 
 class ActionRequest(BaseModel):

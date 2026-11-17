@@ -95,7 +95,7 @@ def test_filters_and_pagination_cannot_expand_member_scope(task_client):
     for filters in ({"assignee_id": 22}, {"search": "仅同事任务有此搜索词"}, {"search": "T6"}):
         response = task_client.get("/api/v1/tasks", params={"state": "all", **filters}, headers=MEMBER)
         assert response.status_code == 200
-        assert response.json() == {"items": [], "total": 0}
+        assert response.json() == {"items": [], "total": 0, "has_reports": False}
     response = task_client.get("/api/v1/tasks", params={"assignee_id": 21, "limit": 1, "offset": 1}, headers=MEMBER)
     assert response.status_code == 200
     assert response.json()["total"] == 2
@@ -200,3 +200,55 @@ def test_staff_and_tasks_require_enabled_personal_identity_and_page(task_client)
     for token in ("disabled-staff", "disabled-account", "denied"):
         assert task_client.get("/api/v1/staff", headers=bearer(token)).status_code == 403
         assert task_client.get("/api/v1/tasks?state=all", headers=bearer(token)).status_code == 403
+
+
+def test_reporting_chain_grants_read_access_only_and_updates_after_reassignment(task_client):
+    def set_report(staff_id, supervisor_id, headers=ADMIN):
+        return task_client.patch(f"/api/v1/admin/members/{staff_id}", headers=headers, json={
+            "name": f"员工{staff_id}", "enabled": True, "role": "member", "supervisor_id": supervisor_id,
+        })
+
+    assert set_report(22, 21, MEMBER).status_code == 403
+    direct = set_report(22, 21)
+    assert direct.status_code == 200
+    assert direct.json()["supervisor_id"] == 21
+    create_report = task_client.post("/api/v1/admin/members", headers=ADMIN, json={
+        "name": "间接下级", "username": "indirect", "password": "replace-me", "supervisor_id": 22,
+    })
+    assert create_report.status_code == 201
+    indirect_id = create_report.json()["id"]
+    assert create_report.json()["supervisor_id"] == 22
+    deep_task = task_client.post("/api/v1/tasks", headers=SERVICE, json={
+        "title": "间接下级任务", "assignee_id": indirect_id,
+    }).json()
+    unrelated = task_client.post("/api/v1/tasks", headers=SERVICE, json={
+        "title": "其他人员任务", "assignee_id": 23,
+    }).json()
+    scoped = task_client.get("/api/v1/tasks?state=all", headers=MEMBER).json()
+    assert scoped["has_reports"]
+    assert scoped["total"] == 8
+    assert {item["id"] for item in scoped["items"]} == {*range(1, 8), deep_task["id"]}
+    assert task_client.get("/api/v1/tasks?state=deleted", headers=MEMBER).json()["total"] == 2
+    assert task_client.get("/api/v1/tasks", headers=MEMBER, params={"search": "间接下级"}).json()["total"] == 1
+    assert task_client.get(f"/api/v1/tasks/{unrelated['id']}", headers=MEMBER).status_code == 404
+    assert task_client.get("/api/v1/tasks/2", headers=MEMBER).status_code == 200
+    assert task_client.get("/api/v1/tasks/by-number/T2", headers=MEMBER).status_code == 200
+    assert task_client.get("/api/v1/tasks/2/events", headers=MEMBER).status_code == 200
+    assert task_client.patch("/api/v1/tasks/2", headers=MEMBER, json={"title": "越权"}).status_code == 404
+    assert task_client.delete("/api/v1/tasks/2", headers=MEMBER).status_code == 404
+    assert task_client.post("/api/v1/tasks/2/complete", headers=MEMBER, json={}).status_code == 403
+    assert task_client.post("/api/v1/tasks/4/reopen", headers=MEMBER, json={}).status_code == 404
+    assert task_client.post("/api/v1/tasks/6/restore", headers=MEMBER, json={}).status_code == 404
+    assert task_client.post("/api/v1/tasks", headers=MEMBER, json={
+        "title": "越权分配", "assignee_id": indirect_id,
+    }).status_code == 403
+    assert task_client.get("/api/v1/tasks", headers=bearer("denied")).status_code == 403
+
+    for invalid in (21, 22, indirect_id, 24, 999):
+        assert set_report(21, invalid).status_code == 422
+    assert set_report(22, 23).status_code == 200
+    after_reassignment = task_client.get("/api/v1/tasks?state=all", headers=MEMBER).json()
+    assert not after_reassignment["has_reports"]
+    assert {item["id"] for item in after_reassignment["items"]} == {1, 3, 5, 7}
+    assert task_client.get("/api/v1/tasks/2/events", headers=MEMBER).status_code == 404
+    assert set_report(22, None).json()["supervisor_id"] is None
