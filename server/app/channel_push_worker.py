@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time as clock_time, timedelta, timezone
 import hashlib
 import hmac
+from itertools import zip_longest
 import json
 from pathlib import Path
 import re
@@ -16,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .channel_aliases import SmartChannelAlias
 from .channel_subscription_models import ChannelPushConfig, ChannelPushDelivery, ChannelSubscription, ChannelWebsiteSnapshot
-from .channel_subscriptions import active_wechat_binding, binding_fingerprint, channel_push_settings
+from .channel_subscriptions import active_wechat_binding, binding_fingerprint, channel_push_settings, grouped_website_sources
 from .channel_website import fetch_website_items
 from .config import get_settings
 from .database import SessionLocal
@@ -50,20 +51,32 @@ class Rule:
     exclude_terms: tuple[str, ...]
     revision: datetime | None
     allowed_user_ids: frozenset[int] | None = field(default=None, compare=False)
+    collection_parent_id: str | None = None
+    website_source_ids: tuple[str, ...] = ()
 
 
 def read_rule(db, channel_id: str, *, lock: bool = False) -> Rule | None:
+    alias = db.get(SmartChannelAlias, channel_id, populate_existing=lock)
+    if alias:
+        parent_id = alias.canonical_id
+        if db.get(SmartChannelAlias, parent_id):
+            return None
+        parent = db.get(SmartChannel, parent_id, with_for_update=lock, populate_existing=lock)
+        parent_config = db.get(ChannelPushConfig, parent_id, with_for_update=lock, populate_existing=lock)
+        if not parent or parent.archived_at is not None or not parent_config or not parent_config.enabled or parent_config.source_type != "articles":
+            return None
     channel = db.get(SmartChannel, channel_id, with_for_update=lock, populate_existing=lock)
-    if not channel or channel.archived_at is not None or db.get(SmartChannelAlias, channel_id):
+    if not channel or channel.archived_at is not None:
         return None
-    config = db.get(ChannelPushConfig, channel_id, with_for_update=lock)
+    config = db.get(ChannelPushConfig, channel_id, with_for_update=lock, populate_existing=lock)
     value = channel_push_settings(channel, config)
-    if not value["enabled"]:
+    if not value["enabled"] or (alias and value["source_type"] != "website"):
         return None
     allowed = None if channel.subscription_user_ids is None else frozenset(channel.subscription_user_ids)
+    sources = grouped_website_sources(db, channel_id) if value["source_type"] == "articles" else ()
     return Rule(channel_id, value["name"], value["schedule"], value["max_items"], value["source_type"],
                 value["source_url"], value["selector"], tuple(value["include_terms"]), tuple(value["exclude_terms"]),
-                config.updated_at if config else None, allowed)
+                config.updated_at if config else None, allowed, alias.canonical_id if alias else None, sources)
 
 
 def item_hash(parts) -> str:
@@ -112,15 +125,19 @@ def wechat_link(value: str) -> str:
         return ""
 
 
+def matches_terms(rule: Rule, *fields: str) -> bool:
+    searchable = " ".join(fields).casefold()
+    return (not rule.include_terms or any(term.casefold() in searchable for term in rule.include_terms)) and not any(
+        term.casefold() in searchable for term in rule.exclude_terms
+    )
+
+
 def website_entries(rule: Rule, fetch) -> list[dict]:
     values = {}
     for item in fetch(rule.source_url, rule.selector, rule.max_items):
         title, body = text_line(item.title, 300), text_line(item.text, 800)
         link = public_link(item.url) or public_link(rule.source_url)
-        searchable = f"{title} {body}".casefold()
-        if rule.include_terms and not any(term.casefold() in searchable for term in rule.include_terms):
-            continue
-        if any(term.casefold() in searchable for term in rule.exclude_terms):
+        if not matches_terms(rule, title, body):
             continue
         if title or body:
             key = item_hash([title, body, link])
@@ -196,7 +213,7 @@ def collect_website(factory, rule: Rule, day: date, now: datetime, fetch) -> Non
 
 
 def opted_in(db, rule: Rule, user_id: int, *, lock: bool = False):
-    if rule.allowed_user_ids is not None and user_id not in rule.allowed_user_ids:
+    if rule.collection_parent_id or (rule.allowed_user_ids is not None and user_id not in rule.allowed_user_ids):
         return None
     subscription = db.get(ChannelSubscription, (rule.channel_id, user_id), with_for_update=lock)
     user = db.get(UserAccount, user_id, with_for_update=lock)
@@ -227,9 +244,33 @@ def article_entries(db, rule: Rule, start: datetime, now: datetime) -> list[dict
              "url": public_link(article.click_url)} for article in articles]
 
 
+def grouped_website_entries(db, rule: Rule, day: date, since: datetime) -> list[dict]:
+    rows = db.execute(select(ChannelWebsiteSnapshot.items, ChannelPushConfig.name)
+        .join(ChannelPushConfig, ChannelPushConfig.channel_id == ChannelWebsiteSnapshot.channel_id)
+        .join(SmartChannel, SmartChannel.id == ChannelWebsiteSnapshot.channel_id)
+        .where(ChannelWebsiteSnapshot.channel_id.in_(rule.website_source_ids), ChannelWebsiteSnapshot.day == day,
+               ChannelWebsiteSnapshot.changed.is_(True), ChannelWebsiteSnapshot.updated_at >= since,
+               ChannelWebsiteSnapshot.config_updated_at == ChannelPushConfig.updated_at,
+               ChannelPushConfig.enabled.is_(True), SmartChannel.archived_at.is_(None))
+        .order_by(ChannelPushConfig.name, ChannelPushConfig.channel_id)).all()
+    sources = [[dict(item, source=name) for item in items if item["changed"]
+                and matches_terms(rule, item["title"], item["text"], name)] for items, name in rows]
+    # Take one item from each source before adding more from the same source.
+    entries = {}
+    for batch in zip_longest(*sources):
+        for item in batch:
+            if item is not None:
+                entries.setdefault(item["fingerprint"], item)
+                if len(entries) == rule.max_items:
+                    return list(entries.values())
+    return list(entries.values())
+
+
 def digest(db, rule: Rule, day: date, now: datetime, subscription, binding) -> str:
     since = max(subscription.created_at, binding.created_at, binding.updated_at)
-    if rule.source_type == "website":
+    if rule.website_source_ids:
+        entries = grouped_website_entries(db, rule, day, since)
+    elif rule.source_type == "website":
         snapshot = db.get(ChannelWebsiteSnapshot, (rule.channel_id, day))
         if not snapshot or not snapshot.changed or snapshot.config_updated_at != rule.revision or snapshot.updated_at < since:
             return ""
@@ -249,6 +290,8 @@ def digest(db, rule: Rule, day: date, now: datetime, subscription, binding) -> s
     for index, item in enumerate(entries, 1):
         title = wechat_text(item["title"], 200)
         line = f"\n\n{index}. {title}"
+        if item.get("source"):
+            line += "\n来源 " + wechat_text(item["source"], 100)
         excerpt = wechat_text(item["text"], 220)
         if excerpt and excerpt != title:
             line += f"\n{excerpt}"
@@ -269,7 +312,8 @@ def send_digest(factory, rule: Rule, user_id: int, day: date, now: datetime, res
         if not recipient:
             return False
         subscription, binding = recipient
-        send = resolve_send(binding.recipient_id)
+        binding_profile = binding.wechat_profile
+        send = resolve_send(binding.recipient_id, binding_profile)
         if send is None:
             return False
         message = digest(db, rule, day, now, subscription, binding)
@@ -305,7 +349,7 @@ def send_digest(factory, rule: Rule, user_id: int, day: date, now: datetime, res
         if delivery is None:
             return False
         if (not recipient or recipient[0].created_at != opted_at or recipient[0].binding_fingerprint != identity
-                or recipient[1].updated_at != binding_updated_at):
+                or recipient[1].updated_at != binding_updated_at or recipient[1].wechat_profile != binding_profile):
             delivery.status = "cancelled"
         else:
             request_id = "channel-" + item_hash([rule.channel_id, user_id, day.isoformat()])
@@ -341,11 +385,13 @@ def run_cycle(factory=SessionLocal, *, now=None, fetch=fetch_website_items, send
             collect_website(factory, rule, day, now, fetch)
     if send is None and resolve_send is None:
         return 0
-    sender_for_recipient = resolve_send if resolve_send is not None else lambda _: send
+    sender_for_recipient = resolve_send if resolve_send is not None else lambda _recipient, _profile: send
 
     attempts = 0
     batch_attempts = 0
     for rule in rules:
+        if rule.collection_parent_id:
+            continue
         with factory() as db:
             already_claimed = exists(select(ChannelPushDelivery.id).where(ChannelPushDelivery.channel_id == rule.channel_id,
                 ChannelPushDelivery.user_id == ChannelSubscription.user_id, ChannelPushDelivery.day == day))
@@ -452,7 +498,9 @@ def profile_wechat_senders(path: str, *, transport=None):
             raise ValueError("Invalid channel WeChat recipient profile")
         recipient_senders[recipient_hash] = senders[profile]
 
-    def sender_for(recipient_id: str):
+    def sender_for(recipient_id: str, profile: str | None = None):
+        if profile:
+            return senders.get(profile)
         return recipient_senders.get(hashlib.sha256(recipient_id.encode()).hexdigest())
 
     return sender_for

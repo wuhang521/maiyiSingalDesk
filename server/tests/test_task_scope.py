@@ -213,7 +213,7 @@ def test_reporting_chain_grants_read_access_only_and_updates_after_reassignment(
     assert direct.status_code == 200
     assert direct.json()["supervisor_id"] == 21
     create_report = task_client.post("/api/v1/admin/members", headers=ADMIN, json={
-        "name": "间接下级", "username": "indirect", "password": "replace-me", "supervisor_id": 22,
+        "name": "间接下级", "username": "indirect", "password": "test-password", "supervisor_id": 22,
     })
     assert create_report.status_code == 201
     indirect_id = create_report.json()["id"]

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     channel_wechat_webhook_url: str = ""
     channel_wechat_webhook_secret: str = ""
     channel_wechat_routes_file: str = ""
+    wechat_pairing_public_base_url: str = ""
     prompt_api_key: str = ""
     prompt_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     prompt_model: str = ""

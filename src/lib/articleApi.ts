@@ -66,6 +66,24 @@ export interface ChannelAudience {
   members: { id: number; name: string; username: string }[];
 }
 
+export interface MemberChannelSubscriptions {
+  staff_id: number;
+  user_id: number;
+  member_name: string;
+  wechat_bound: boolean;
+  binding_revision: string | null;
+  subscribed_channel_ids: string[];
+  channels: {
+    id: string;
+    name: string;
+    schedule: string;
+    enabled: boolean;
+    subscribed: boolean;
+    can_subscribe: boolean;
+    unavailable_reason: string;
+  }[];
+}
+
 function endpoint(settings: AppSettings, path: string): string {
   return `${settings.backendUrl.trim().replace(/\/+$/, "")}${path}`;
 }
@@ -237,6 +255,17 @@ export const articleApi = {
 
   channelAudience(settings: AppSettings, channelId: string, signal?: AbortSignal) {
     return request<ChannelAudience>(settings, `/api/v1/channel-subscriptions/configs/${encodeURIComponent(channelId)}/audience`, { signal });
+  },
+
+  memberSubscriptions(settings: AppSettings, staffId: number, signal?: AbortSignal) {
+    return request<MemberChannelSubscriptions>(settings, `/api/v1/channel-subscriptions/members/${staffId}`, { signal });
+  },
+
+  saveMemberSubscriptions(settings: AppSettings, state: MemberChannelSubscriptions, channelIds: string[]) {
+    return request<MemberChannelSubscriptions>(settings, `/api/v1/channel-subscriptions/members/${state.staff_id}`, {
+      method: "PUT", body: JSON.stringify({ previous_channel_ids: state.subscribed_channel_ids,
+        channel_ids: channelIds, binding_revision: state.binding_revision }),
+    });
   },
 
   saveChannelAudience(settings: AppSettings, channelId: string, previousIds: number[] | null, allowedIds: number[] | null) {

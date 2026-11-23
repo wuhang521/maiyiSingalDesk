@@ -5,6 +5,7 @@ import { DESKTOP_PAGES } from "../lib/pageAccess";
 import { taskApi } from "../lib/taskApi";
 import type { AppSettings, StaffPlatform } from "../types";
 import { WechatPairingDialog } from "./WechatPairingDialog";
+import { MemberSubscriptionsDialog } from "./MemberSubscriptionsDialog";
 import "./member-management.css";
 
 interface Props {
@@ -36,6 +37,7 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
   const [platform, setPlatform] = useState<StaffPlatform>("qq");
   const [recipient, setRecipient] = useState("");
   const [pairingMember, setPairingMember] = useState<ManagedMember>();
+  const [subscriptionMember, setSubscriptionMember] = useState<ManagedMember>();
   const nameInput = useRef<HTMLInputElement>(null);
   const createButton = useRef<HTMLButtonElement>(null);
   const channelErrorSummary = useRef<HTMLDivElement>(null);
@@ -201,6 +203,8 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
       </div>
       {editing !== undefined && <aside className="member-editor" aria-label={editing ? `管理 ${editing.name}` : "添加用户表单"}>
         <div className="member-editor-heading"><h3>{editing ? "管理用户" : "添加用户"}</h3><button className="icon-button" type="button" aria-label="关闭用户表单" disabled={busy} onClick={closeEditor}><X size={18} /></button></div>
+        {editing?.user && <button className="secondary-button member-subscriptions-open" type="button" disabled={busy}
+          onClick={() => setSubscriptionMember(editing)}>频道订阅</button>}
         <form onSubmit={submit}>
           <fieldset disabled={busy}>
             <label><span>姓名或称呼</span><input ref={nameInput} required maxLength={80} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -264,6 +268,12 @@ export function MemberManagement({ settings, currentStaffId, onMembersChanged }:
         </section>}
       </aside>}
     </div>
+    {subscriptionMember && <MemberSubscriptionsDialog member={subscriptionMember} settings={settings}
+      onClose={() => setSubscriptionMember(undefined)} onSaved={() => {
+        setNotice(`已更新“${subscriptionMember.name}”的频道订阅，成员无需再次订阅。`);
+        setSubscriptionMember(undefined);
+        onMembersChanged();
+      }} />}
     {pairingMember && <WechatPairingDialog member={pairingMember} settings={settings}
       onClose={() => setPairingMember(undefined)} onBound={() => {
         setPairingMember(undefined);

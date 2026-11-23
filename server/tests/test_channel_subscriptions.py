@@ -24,6 +24,12 @@ OTHER = {"Authorization": "Bearer fixture-other"}
 ADMIN = {"Authorization": "Bearer fixture-admin"}
 
 
+def member_draft(client, channels, *, staff_id=1, snapshot=None):
+    snapshot = snapshot or client.get(f"{BASE}/members/{staff_id}", headers=ADMIN).json()
+    return {"previous_channel_ids": snapshot["subscribed_channel_ids"], "channel_ids": channels,
+            "binding_revision": snapshot["binding_revision"]}
+
+
 @pytest.fixture
 def api(monkeypatch):
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
@@ -76,6 +82,115 @@ def test_opt_in_is_personal_idempotent_and_requires_wechat(api):
     assert client.delete(path, headers=MEMBER).json() == {"subscribed": False}
 
 
+def test_admin_can_assign_real_subscriptions_without_changing_other_members(api):
+    client, factory = api
+    path = f"{BASE}/members/1"
+    initial = client.get(path, headers=ADMIN)
+    assert initial.status_code == 200 and initial.json()["wechat_bound"]
+    assert "synthetic-peer" not in str(initial.json())
+    payload = member_draft(client, ["existing"])
+    saved = client.put(path, headers=ADMIN, json=payload)
+    assert saved.status_code == 200 and saved.json()["subscribed_channel_ids"] == ["existing"]
+    assert client.get(f"{BASE}/catalog", headers=MEMBER).json()["channels"][0]["subscribed"]
+    assert not client.get(f"{BASE}/catalog", headers=OTHER).json()["channels"][0]["subscribed"]
+    with factory() as db:
+        start = db.get(ChannelSubscription, ("existing", 1)).created_at
+    assert client.put(path, headers=ADMIN, json=payload).status_code == 200
+    with factory() as db:
+        assert db.get(ChannelSubscription, ("existing", 1)).created_at == start
+        assert db.scalar(select(func.count()).select_from(ChannelSubscription)) == 1
+    cancelled = client.put(path, headers=ADMIN, json=member_draft(client, []))
+    assert cancelled.status_code == 200 and cancelled.json()["subscribed_channel_ids"] == []
+    assert not client.get(f"{BASE}/catalog", headers=MEMBER).json()["channels"][0]["subscribed"]
+
+
+@pytest.mark.parametrize("headers,status", [({}, 401), (SERVICE, 401), (MEMBER, 403), (OTHER, 403)])
+def test_member_subscriptions_require_logged_in_admin(api, headers, status):
+    client, _ = api
+    assert client.get(f"{BASE}/members/1", headers=headers).status_code == status
+    assert client.put(f"{BASE}/members/1", headers=headers, json=member_draft(client, [])).status_code == status
+
+
+@pytest.mark.parametrize("blocked", ["unbound", "multiple_bindings", "disabled", "page_access", "audience", "paused"])
+def test_admin_subscribe_respects_target_eligibility(api, blocked):
+    client, factory = api
+    with factory.begin() as db:
+        if blocked == "unbound":
+            db.delete(db.get(StaffChannel, 1))
+        elif blocked == "multiple_bindings":
+            db.add(StaffChannel(staff_id=1, platform="weixin", recipient_id="synthetic-second"))
+        elif blocked == "disabled":
+            db.get(UserAccount, 1).enabled = False
+        elif blocked == "page_access":
+            db.get(UserAccount, 1).allowed_pages = ["tasks"]
+        elif blocked == "audience":
+            db.get(SmartChannel, "existing").subscription_user_ids = [3]
+        else:
+            db.get(SmartChannel, "existing").state = "paused"
+    state = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    assert not state["channels"][0]["can_subscribe"] and state["channels"][0]["unavailable_reason"]
+    saved = client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, ["existing"], snapshot=state))
+    assert saved.status_code == 409
+    with factory() as db:
+        assert db.scalar(select(func.count()).select_from(ChannelSubscription)) == 0
+
+
+def test_admin_batch_validation_is_atomic_and_paused_subscriptions_can_be_cancelled(api):
+    client, factory = api
+    assert client.put(f"{BASE}/existing/subscription", headers=MEMBER).status_code == 200
+    with factory.begin() as db:
+        db.add(SmartChannel(id="paused", name="暂停频道", state="paused"))
+    state = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    assert client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, ["paused"], snapshot=state)).status_code == 409
+    with factory() as db:
+        assert db.get(ChannelSubscription, ("existing", 1)) is not None
+    with factory.begin() as db:
+        db.get(SmartChannel, "existing").state = "paused"
+        db.get(UserAccount, 1).enabled = False
+    state = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    assert state["subscribed_channel_ids"] == ["existing"]
+    assert client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, [], snapshot=state)).status_code == 200
+    with factory() as db:
+        assert db.get(ChannelSubscription, ("existing", 1)) is None
+
+
+def test_admin_rejects_stale_subscription_and_changed_wechat_snapshots(api):
+    client, factory = api
+    with factory.begin() as db:
+        db.add(SmartChannel(id="second", name="第二频道", state="active"))
+    state = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    assert client.put(f"{BASE}/existing/subscription", headers=MEMBER).status_code == 200
+    stale = client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, ["second"], snapshot=state))
+    assert stale.status_code == 409 and "订阅已被更新" in stale.json()["detail"]
+    state = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    with factory.begin() as db:
+        db.get(StaffChannel, 1).recipient_id = "synthetic-rebound"
+    changed = client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, ["second"], snapshot=state))
+    assert changed.status_code == 409 and "微信绑定已变更" in changed.json()["detail"]
+    fresh = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    assert fresh["subscribed_channel_ids"] == []
+    assert client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, ["second"], snapshot=fresh)).status_code == 200
+    with factory() as db:
+        subscription = db.get(ChannelSubscription, ("second", 1))
+        assert channel_subscriptions.subscription_matches(subscription, db.get(StaffChannel, 1))
+        assert db.get(ChannelSubscription, ("existing", 1)) is None
+
+
+def test_admin_catalog_uses_canonical_channels_and_rejects_unknown_targets(api):
+    client, factory = api
+    with factory.begin() as db:
+        db.add(SmartChannel(id="alias", name="合并前栏目", state="active"))
+        db.add(SmartChannelAlias(alias_id="alias", canonical_id="existing"))
+        db.add(SmartChannel(id="archived", name="已删频道", archived_at=utcnow()))
+        db.add(Staff(id=9, name="无登录账号人员"))
+    state = client.get(f"{BASE}/members/1", headers=ADMIN).json()
+    assert [row["id"] for row in state["channels"]] == ["existing"]
+    for channel_id in ("alias", "archived", "missing"):
+        assert client.put(f"{BASE}/members/1", headers=ADMIN, json=member_draft(client, [channel_id], snapshot=state)).status_code == 422
+    assert client.get(f"{BASE}/members/999", headers=ADMIN).status_code == 404
+    assert client.get(f"{BASE}/members/9", headers=ADMIN).status_code == 409
+
+
 def test_rebound_account_must_opt_in_again_even_if_binding_id_is_reused(api):
     client, factory = api
     path = f"{BASE}/existing/subscription"
@@ -87,6 +202,36 @@ def test_rebound_account_must_opt_in_again_even_if_binding_id_is_reused(api):
     assert not client.get(f"{BASE}/catalog", headers=MEMBER).json()["channels"][0]["subscribed"]
     assert client.put(path, headers=MEMBER).status_code == 200
     assert client.get(f"{BASE}/catalog", headers=MEMBER).json()["channels"][0]["subscribed"]
+
+
+def test_grouped_website_has_one_catalog_row_and_only_canonical_opt_in(api):
+    client, factory = api
+    with factory.begin() as db:
+        parent = db.get(SmartChannel, "existing")
+        parent.name = "医疗前沿频道"
+        parent.subscription_user_ids = [1]
+        db.add(SmartChannel(id="old-web", name="旧官网栏目", state="active"))
+        db.add(SmartChannelAlias(alias_id="old-web", canonical_id="existing"))
+        db.add(ChannelPushConfig(channel_id="old-web", name="旧官网栏目", enabled=True, schedule="09:00",
+                                 max_items=10, source_type="website", source_url="https://example.org/news", selector="main a"))
+        db.add(ChannelPushConfig(channel_id="existing", name=parent.name, enabled=True, schedule="09:00",
+                                 max_items=10, source_type="articles"))
+    rows = client.get("/api/v1/channels", headers=MEMBER).json()
+    assert [(row["name"], row["aliases"]) for row in rows] == [("医疗前沿频道", ["old-web"])]
+    catalog = client.get(f"{BASE}/catalog", headers=MEMBER).json()["channels"]
+    assert [(row["id"], row["subscribed"], row["subscription_allowed"]) for row in catalog] == [("existing", False, True)]
+    assert client.put(f"{BASE}/old-web/subscription", headers=MEMBER).status_code == 409
+    assert client.put(f"{BASE}/existing/subscription", headers=OTHER).status_code == 403
+    assert client.put(f"{BASE}/existing/subscription", headers=MEMBER).status_code == 200
+    assert client.delete(f"{BASE}/old-web/subscription", headers=MEMBER).status_code == 409
+    website = {"id": "existing", "name": "汇总", "schedule": "09:00", "max_items": 10,
+               "source_type": "website", "source_url": "https://example.org/news", "selector": "main a"}
+    assert client.post(f"{BASE}/configs", headers=ADMIN, json=website).status_code == 409
+    assert client.put(f"{BASE}/configs/existing/enabled", headers=ADMIN, json={"enabled": False}).status_code == 200
+    with factory() as db:
+        assert db.get(SmartChannel, "existing").state == "paused"
+        assert db.get(ChannelPushConfig, "old-web").enabled
+        assert db.get(ChannelSubscription, ("existing", 1)) is not None
 
 
 def test_only_admin_can_configure_channel_and_disabled_channel_cannot_be_subscribed(api):
@@ -298,7 +443,7 @@ def test_queued_dispatch_rechecks_the_current_audience(api):
         pytest.fail("Stale audience allowed an excluded recipient")
 
     day = now.replace(tzinfo=timezone.utc).astimezone(BEIJING).date()
-    assert send_digest(factory, cached_rule, 1, day, now, lambda _: forbidden_send)
+    assert send_digest(factory, cached_rule, 1, day, now, lambda _recipient, _profile: forbidden_send)
     with factory() as db:
         assert db.scalar(select(ChannelPushDelivery.status)) == "cancelled"
 

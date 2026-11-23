@@ -12,6 +12,7 @@ from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 
 from app import channel_push_worker as worker
+from app.channel_aliases import SmartChannelAlias
 from app.channel_subscription_models import ChannelPushConfig, ChannelPushDelivery, ChannelSubscription, ChannelWebsiteSnapshot
 from app.channel_subscriptions import binding_fingerprint
 from app.channel_website import WebsiteItem
@@ -35,14 +36,14 @@ def factory(tmp_path):
     engine.dispose()
 
 
-def add_person(db, id, *, subscribe=True, binding=True, platform="weixin", opted_at=ENROLLED, **values):
+def add_person(db, id, *, subscribe=True, binding=True, platform="weixin", opted_at=ENROLLED, wechat_profile=None, **values):
     staff = Staff(id=id, name=f"Member {id}", enabled=values.pop("staff_enabled", True),
                   removed_at=values.pop("removed_at", None))
     user = UserAccount(id=id, staff_id=id, username=f"member{id}", password_hash="fixture", **values)
     db.add_all((staff, user))
     if binding:
         route = StaffChannel(id=id, staff_id=id, platform=platform, recipient_id=f"wx-{id}@im.wechat",
-                             created_at=BOUND, updated_at=BOUND)
+                             created_at=BOUND, updated_at=BOUND, wechat_profile=wechat_profile)
         db.add(route)
     if subscribe:
         db.add(ChannelSubscription(channel_id="ai", user_id=id, binding_id=id,
@@ -228,6 +229,59 @@ def test_website_baseline_browsable_without_subscribers_then_pushes_only_changes
         assert set(db.scalars(select(Article.title)).all()) == {"已有标题", "新增标题"}
 
 
+def test_grouped_website_sources_keep_their_baselines_and_send_one_opt_in_digest(factory):
+    with factory.begin() as db:
+        for source, name in (("source-a", "英国示例"), ("source-b", "美国示例"), ("source-offline", "超时示例")):
+            db.add(SmartChannel(id=source, name=name, state="active"))
+            db.add(ChannelPushConfig(channel_id=source, name=name, enabled=True, schedule="09:00", max_items=5,
+                                     source_type="website", source_url=f"https://news.example/{source}", selector="main a"))
+            db.add(SmartChannelAlias(alias_id=source, canonical_id="ai"))
+        parent = db.get(SmartChannel, "ai")
+        parent.name = "医疗前沿频道"
+        parent.subscription_user_ids = [1]
+        db.add(ChannelPushConfig(channel_id="ai", name=parent.name, enabled=True, schedule="09:00", max_items=5,
+                                 source_type="articles"))
+
+    old = WebsiteItem("已有标题", "已有内容", "https://news.example/old")
+    repeated = WebsiteItem("跨来源重复", "共同发布", "https://news.example/same")
+    lists = {
+        "source-a": [old], "source-b": [old], "source-offline": [old],
+    }
+    reads = []
+    calls = []
+
+    def fetch(url, selector, limit):
+        key = url.rsplit("/", 1)[-1]
+        reads.append(key)
+        if key not in lists:
+            raise ValueError("fixture source unavailable")
+        return lists[key]
+
+    send = lambda *args: calls.append(args) or "sent"
+    assert worker.run_cycle(factory, now=DAY, fetch=fetch, send=send) == 0
+    with factory.begin() as db:
+        add_person(db, 1, opted_at=DAY + timedelta(minutes=1))
+        add_person(db, 2, opted_at=DAY + timedelta(minutes=1))
+        assert len(db.scalars(select(ChannelWebsiteSnapshot)).all()) == 3
+    lists["source-a"] += [WebsiteItem("英国新增", "更新甲", "https://news.example/a"), repeated]
+    lists["source-b"] += [WebsiteItem("美国新增", "更新乙", "https://news.example/b"), repeated]
+    del lists["source-offline"]
+    next_day = DAY + timedelta(days=1)
+    assert worker.run_cycle(factory, now=next_day, fetch=fetch, send=send) == 1
+    assert worker.run_cycle(factory, now=next_day + timedelta(minutes=1), fetch=fetch, send=send) == 0
+    assert len(calls) == 1 and calls[0][0] == "wx-1@im.wechat"
+    message = calls[0][1]
+    assert all(text in message for text in ("医疗前沿频道", "英国新增", "美国新增", "英国示例", "美国示例"))
+    assert "已有标题" not in message and message.count("跨来源重复") == 1
+    with factory.begin() as db:
+        assert set(db.scalars(select(Article.channel_id)).all()) == {"source-a", "source-b", "source-offline"}
+        assert [(row.channel_id, row.user_id) for row in db.scalars(select(ChannelPushDelivery))] == [("ai", 1)]
+        db.get(ChannelPushConfig, "ai").enabled = False
+    reads.clear()
+    assert worker.run_cycle(factory, now=next_day + timedelta(days=1), fetch=fetch, send=send) == 0
+    assert reads == []
+
+
 def test_web_baseline_survives_rename_time_and_pause_but_resets_for_new_source(factory):
     with factory.begin() as db:
         add_person(db, 1)
@@ -325,11 +379,11 @@ def routed_config(bindings):
 def test_each_recipient_uses_only_its_profile_and_unmapped_has_no_delivery_claim(factory, tmp_path):
     with factory.begin() as db:
         for user_id in (1, 2, 3):
-            add_person(db, user_id)
+            add_person(db, user_id, wechat_profile="member-two" if user_id == 2 else None)
         add_article(db, "latest", "可信消息")
     profiles = {"wx-1@im.wechat": "default", "wx-2@im.wechat": "member-two"}
     routes = tmp_path / "routes.json"
-    routes.write_text(json.dumps(routed_config(profiles)), encoding="utf-8")
+    routes.write_text(json.dumps(routed_config({"wx-1@im.wechat": "default"})), encoding="utf-8")
     calls = []
 
     def post(request):

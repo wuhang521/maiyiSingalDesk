@@ -1,0 +1,7 @@
+name: signaldesk-wechat-pairing
+version: 1.0.0
+description: Verify a SignalDesk WeChat pairing command in an authorized Hermes private chat.
+author: SignalDesk
+kind: standalone
+provides_hooks:
+  - pre_gateway_dispatch

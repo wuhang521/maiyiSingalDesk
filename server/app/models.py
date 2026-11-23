@@ -82,10 +82,25 @@ class StaffChannel(Base):
     platform: Mapped[str] = mapped_column(String(20))
     recipient_id: Mapped[str] = mapped_column(String(160))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    wechat_profile: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     staff: Mapped[Staff] = relationship(back_populates="channels")
+
+
+class WechatPairing(Base):
+    __tablename__ = "wechat_pairing"
+
+    staff_id: Mapped[int] = mapped_column(ForeignKey("staff.id", ondelete="CASCADE"), primary_key=True)
+    id: Mapped[str] = mapped_column(String(32), unique=True)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("user_account.id", ondelete="CASCADE"))
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    previous_binding_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime6)
+    recipient_id: Mapped[str | None] = mapped_column(String(160))
+    profile: Mapped[str | None] = mapped_column(String(64))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime6)
 
 
 class Task(Base):

@@ -13,6 +13,7 @@ from .auth import AuthPrincipal, require_api_key, require_shared_api_key, requir
 from .auth_routes import router as auth_router
 from .articles import router as articles_router
 from .channel_subscriptions import router as channel_subscriptions_router
+from .wechat_pairing import router as wechat_pairing_router
 from .video import router as video_router
 from .video_projects import router as video_projects_router
 from .content import router as content_router
@@ -65,6 +66,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(articles_router)
 app.include_router(channel_subscriptions_router)
+app.include_router(wechat_pairing_router)
 app.include_router(video_router)
 app.include_router(video_projects_router)
 app.include_router(content_router)

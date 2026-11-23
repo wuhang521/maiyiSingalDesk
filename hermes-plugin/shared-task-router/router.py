@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import unicodedata
@@ -14,6 +15,7 @@ from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
 
+logger = logging.getLogger(__name__)
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 PLATFORM_ALIASES = {"qqbot": "qq", "qq": "qq", "weixin": "weixin", "wecom": "wecom"}
 DEFAULT_STAFF_ALIASES = {
@@ -21,13 +23,21 @@ DEFAULT_STAFF_ALIASES = {
     "靓仔": "杰哥",
     "敏总": "敏总",
     "姐": "敏总",
-    "振华": "振华",
 }
 DEFAULT_CREATOR_BY_IDENTITY = {
     "qq:杰哥": "靓仔",
     "weixin:敏总": "姐",
-    "wecom:振华": "振华",
 }
+ASSIGNEE_CONNECTOR_RE = (
+    r"(?:和|与|及|跟|以及|还有|同|、\s*(?:还有)?|"
+    r"或者|还是|或|并(?:让|叫|通知|给)?)"
+)
+ASSIGNMENT_VERB_RE = (
+    r"(?:安排|布置|分配|指派|交代|派发|新增|创建|"
+    r"添加(?=\s*(?:一下|一个|个|一项|项)?\s*(?:任务|待办|工作)))"
+)
+SELF_REFERENCES = frozenset(("我自己", "我本人", "自己", "本人", "我"))
+SELF_REFERENCE_RE = r"(?:我自己|我本人|自己|本人|我)"
 
 CALENDAR_PATTERNS = (
     "添加到日历",
@@ -56,7 +66,11 @@ DELETE_WORDS = ("删除", "删掉", "删了", "移到回收站")
 RESTORE_WORDS = ("恢复", "还原", "从回收站恢复")
 REOPEN_WORDS = ("重新打开", "重新开始", "重做", "撤销完成")
 DETAIL_WORDS = ("详情", "详细", "具体要求", "是做什么", "什么内容")
-UPDATE_WORDS = ("修改", "改成", "改到", "延期", "推迟", "转给", "改给")
+UPDATE_WORDS = (
+    "修改", "更新", "改动", "变更", "改成", "改到", "改为", "调整",
+    "延期", "推迟", "转给", "改给", "能改", "怎么改",
+    "关闭提醒", "开启提醒", "提醒频率", "提醒间隔",
+)
 
 TASK_NO_RE = re.compile(r"(?i)T\s*0*([1-9]\d*)")
 NUMBERED_ITEM_RE = re.compile(
@@ -87,9 +101,13 @@ class Intent:
     title: str | None = None
     content: str = ""
     due_at: datetime | None = None
+    preserve_due_date: bool = False
     state: str = "active"
     message: str | None = None
     new_assignee: str | None = None
+    new_content: str | None = None
+    remind_enabled: bool | None = None
+    remind_interval_minutes: int | None = None
     rule_id: str = ""
 
 
@@ -112,6 +130,33 @@ def normalize_text(value: str) -> str:
         text = parts[1] if len(parts) == 2 else ""
     text = re.sub(r"<@!?[^>]+>", " ", text)
     text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"(?<=[0-9零〇一二两三四五六七八九十])\s+(?=点|分)", "", text)
+    text = re.sub(r"(?<=点)\s+(?=[0-9零〇一二两三四五六七八九十半])", "", text)
+    text = re.sub(r"(?<=\d)\s*:\s*(?=\d)", ":", text)
+    return text.strip()
+
+
+def normalize_task_command(value: str) -> str:
+    """只为任务路由去掉口语开场，普通聊天文本保持不变。"""
+    text = normalize_text(value)
+    opener_re = re.compile(
+        r"^(?:好的?|行|可以(?:的)?|没问题|明白(?:了)?|收到|嗯+|"
+        r"那(?:就)?|然后|接下来|对了|顺便|我想)"
+        r"(?:(?:\s*[,，。.!！、:：]\s*)|\s+|"
+        r"(?=你|请|麻烦|帮我|给|让|叫|通知|把|由|完成|详情|查看|修改|改|"
+        r"安排|布置|分配|指派|交代|派发|新增|创建))"
+    )
+    while True:
+        match = opener_re.match(text)
+        if not match:
+            break
+        text = text[match.end():].lstrip(" ,，。.!！、:：")
+    text = re.sub(
+        rf"^你(?:再|就)?\s*(?=(?:请|麻烦|帮我|给|让|叫|通知|把|由|"
+        rf"完成|详情|查看|修改|改|{ASSIGNMENT_VERB_RE}))",
+        "",
+        text,
+    )
     return text.strip()
 
 
@@ -120,7 +165,7 @@ def normalize_platform(value: str) -> str:
 
 
 def is_complete_all_command(value: str) -> bool:
-    clean = normalize_text(value).strip("。.!！ ")
+    clean = normalize_task_command(value).strip("。.!！ ")
     complete = r"(?:完成|做完|干完|搞定|办完)"
     return bool(
         re.fullmatch(
@@ -362,8 +407,8 @@ def parse_chinese_datetime(text: str, now: datetime | None = None) -> TimeParse:
     )
     point_times = list(
         re.finditer(
-            r"([零〇一二两三四五六七八九十\d]{1,3})点"
-            r"(?:(半)|(一刻|两刻|三刻)|([零〇一二两三四五六七八九十\d]{1,3})分?)?",
+            r"(?<!\d)(\d{1,2}|[零〇一二两三四五六七八九十]{1,3})点"
+            r"(?:(半)|(一刻|两刻|三刻)|(\d{1,2}|[零〇一二两三四五六七八九十]{1,3})分?)?",
             text,
         )
     )
@@ -391,9 +436,12 @@ def parse_chinese_datetime(text: str, now: datetime | None = None) -> TimeParse:
             return TimeParse(error="请说明是上午还是下午。")
 
     if hour is None:
-        if matches or date_value is not None:
+        if period == "下午" or (date_value is not None and not period):
+            hour, minute = 14, 0
+        elif matches or date_value is not None:
             return TimeParse(error="已识别到日期或时间段，但缺少具体几点，请补充明确时间。")
-        return TimeParse(value=None, matched=tuple(dict.fromkeys(matches)))
+        else:
+            return TimeParse(value=None, matched=tuple(dict.fromkeys(matches)))
 
     if period in {"下午", "傍晚", "晚上", "今晚", "明晚"} and hour < 12:
         hour += 12
@@ -435,8 +483,25 @@ def _remove_time_phrases(text: str, parsed: TimeParse) -> str:
     for item in sorted(parsed.matched, key=len, reverse=True):
         result = result.replace(item, " ")
     result = re.sub(r"\s+", " ", result)
+    result = re.sub(
+        r"^\s*(?:前|之前)\s*(?=(?:完成|提交|发布|发版|办理|安装|开发|搭建|优化|处理|开会|联系|跟进))",
+        "",
+        result,
+    )
     result = re.sub(r"^[在于到的,，:：、\s]+|[。.!！\s]+$", "", result)
     return result.strip()
+
+
+def _has_explicit_date_phrase(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\d{4}[-/]\d{1,2}[-/]\d{1,2}|"
+            r"(?<!\d)\d{1,2}[/-]\d{1,2}(?!\d)|"
+            r"\d{1,2}月\d{1,2}[日号]?|大后天|后天|明天|明日|今天|今日|"
+            r"(?:下下周|下周|本周|这周|周|星期|礼拜)[一二三四五六日天]",
+            normalize_text(text),
+        )
+    )
 
 
 def _alias_map(staff: Iterable[StaffIdentity], configured: dict[str, str] | None = None) -> dict[str, str]:
@@ -465,6 +530,10 @@ def _alias_pattern(aliases: dict[str, str]) -> str:
             escaped += r"(?!们)"
         patterns.append(escaped)
     return "|".join(patterns)
+
+
+def _is_self_reference(value: str | None) -> bool:
+    return value in SELF_REFERENCES
 
 
 def _normalize_task_no(text: str) -> str | None:
@@ -573,35 +642,53 @@ def _multiple_assignees(
         return ()
     alias_re = _alias_pattern(aliases)
     names: list[str] = []
-    connector = (
-        r"(?:和|与|及|跟|以及|还有|同|、\s*(?:还有)?|"
-        r"或者|还是|或|并(?:让|叫|通知|给)?)"
-    )
     for match in re.finditer(
-        rf"({alias_re}|我)\s*{connector}\s*({alias_re}|我)",
+        rf"({alias_re}|{SELF_REFERENCE_RE})\s*{ASSIGNEE_CONNECTOR_RE}\s*"
+        rf"({alias_re}|{SELF_REFERENCE_RE})",
         normalize_text(text),
     ):
         for raw in (match.group(1), match.group(2)):
-            names.append((self_name or "__self__") if raw == "我" else aliases[raw])
+            names.append((self_name or "__self__") if _is_self_reference(raw) else aliases[raw])
     titled_person = r"[\u4e00-\u9fffA-Za-z0-9_-]{1,8}(?:总|哥|姐|经理|主管|主任|老师|先生|女士|老板|工)"
     for match in re.finditer(
-        rf"({alias_re}|我)\s*{connector}\s*({titled_person})",
+        rf"({alias_re}|{SELF_REFERENCE_RE})\s*{ASSIGNEE_CONNECTOR_RE}\s*({titled_person})",
         normalize_text(text),
     ):
         first = match.group(1)
         names.extend(
             (
-                (self_name or "__self__") if first == "我" else aliases[first],
+                (self_name or "__self__") if _is_self_reference(first) else aliases[first],
                 f"__unknown__:{match.group(2)}",
             )
         )
     for match in re.finditer(
-        rf"(?:转给|改给)\s*({alias_re}|我)",
+        rf"(?:转给|改给)\s*({alias_re}|{SELF_REFERENCE_RE})",
         normalize_text(text),
     ):
         raw = match.group(1)
-        names.append((self_name or "__self__") if raw == "我" else aliases[raw])
+        names.append((self_name or "__self__") if _is_self_reference(raw) else aliases[raw])
     return tuple(dict.fromkeys(names)) if len(set(names)) > 1 else ()
+
+
+def _parse_reminder_interval(text: str) -> tuple[int | None, str | None]:
+    match = re.search(
+        r"(?:每隔|每|间隔\s*(?:修改为|更新为|改成|改为|调整为)?|"
+        r"提醒(?:频率|间隔)?\s*(?:修改为|更新为|改成|改为|调整为))\s*"
+        r"(半|\d+|[零〇一二两三四五六七八九十]{1,3})\s*(?:个)?"
+        r"(分钟|小时|天)(?:提醒)?(?:一次)?",
+        text,
+    )
+    if not match:
+        return None, None
+    raw_value, unit = match.groups()
+    if raw_value == "半":
+        minutes = 30 if unit == "小时" else 0
+    else:
+        value = chinese_number(raw_value)
+        minutes = (value or 0) * {"分钟": 1, "小时": 60, "天": 1440}[unit]
+    if not 30 <= minutes <= 10080:
+        return None, "提醒间隔需在30分钟到7天之间。"
+    return minutes, None
 
 
 def _task_number_intent(
@@ -630,9 +717,6 @@ def _task_number_intent(
             message="一次只能给一个负责人，请只保留一个姓名。",
             rule_id="UPDATE_MULTIPLE_ASSIGNEES",
         )
-    negative_or_question = _looks_question(clean) or _looks_negative_instruction(clean)
-    if negative_or_question:
-        return Intent(kind="detail", task_no=task_no, rule_id="TASK_STATUS_QUESTION")
 
     token = r"(?i:T\s*0*[1-9]\d*)"
     polite = r"(?:请|麻烦|帮我|帮忙)?\s*"
@@ -659,10 +743,34 @@ def _task_number_intent(
             clean,
         )
     )
-    update_command = bool(
-        re.fullmatch(rf"{polite}(?:把\s*)?{token}\s*(?:修改|改成|改到|延期|推迟|转给|改给).+", clean)
-        or re.fullmatch(rf"{polite}(?:修改|更新)\s*{token}\s*.+", clean)
+    field = r"(?:截止时间|截止日期|时间|标题|任务名称|任务内容|内容|具体要求|负责人|提醒频率|提醒间隔|提醒)"
+    change_verb = r"(?:修改(?:为|到)?|更新(?:为|到)?|改动(?:为|到)?|变更(?:为|到)?|改成|改到|改为|调整(?:为|到)?|延期到?|推迟到?|转给|改给)"
+    toggle_reminder = bool(
+        re.fullmatch(rf"{polite}(?:关闭|停止|暂停|取消|开启|启用|恢复)\s*(?:任务)?\s*{token}\s*(?:的)?提醒", clean)
+        or re.fullmatch(rf"{polite}(?:把\s*)?{token}\s*(?:的)?提醒\s*(?:关闭|停止|暂停|取消|开启|启用|恢复)", clean)
     )
+    update_command = bool(
+        re.fullmatch(
+            rf"{polite}(?:把\s*)?(?:任务)?\s*{token}\s*(?:的)?{field}?\s*{change_verb}.+",
+            clean,
+        )
+        or re.fullmatch(rf"{polite}(?:修改|更新|调整|变更)\s*(?:任务)?\s*{token}\s*.+", clean)
+        or toggle_reminder
+    )
+    update_question = _looks_question(clean) and bool(
+        re.search(r"怎么(?:修改|改)|如何(?:修改|改)|能不能改|是否能改|可以改|能改|修改.*(?:吗|么|呢)", clean)
+    )
+    if update_question:
+        return Intent(
+            kind="clarify",
+            task_no=task_no,
+            message=(
+                f"可以修改 {task_no}，本次没有改动。请直接说明字段和新值，例如："
+                f"“把{task_no}截止时间改到明天下午2点”或“把{task_no}内容改为准备会议材料”。"
+            ),
+            rule_id="UPDATE_CAPABILITY",
+        )
+
     command_count = sum(
         (restore_command, reopen_command, delete_command, complete_command, update_command)
     )
@@ -690,48 +798,148 @@ def _task_number_intent(
     )
     if detail_command:
         return Intent(kind="detail", task_no=task_no, rule_id="DETAIL_BY_NO")
-    if update_command:
-        update_payload = re.split(
-            r"(?:修改为|改成|改到|延期到?|推迟到?|转给|改给|修改|更新)",
-            clean,
-            maxsplit=1,
-        )[-1]
-        if _looks_question(update_payload) or _looks_negative_instruction(update_payload):
-            return Intent(
-                kind="clarify",
-                task_no=task_no,
-                message=f"没有修改 {task_no}。请明确说明新的负责人、标题或截止时间。",
-                rule_id="UPDATE_NON_MUTATING",
-            )
-        parsed = parse_chinese_datetime(clean, now)
-        if parsed.error:
-            return Intent(kind="clarify", message=parsed.error, rule_id="UPDATE_TIME_AMBIGUOUS")
-        new_assignee = None
-        alias_re = _alias_pattern(aliases)
-        person_match = re.search(rf"(?:转给|改给)\s*({alias_re})", clean) if alias_re else None
-        if person_match:
-            new_assignee = aliases[person_match.group(1)]
-        title = None
-        change = re.search(r"(?:改成|修改为)\s*(.+)$", clean)
-        if change:
-            candidate = _remove_time_phrases(change.group(1), parsed)
-            candidate = re.sub(rf"(?:转给|改给)\s*(?:{alias_re})", "", candidate).strip(" ,，。")
-            title = candidate or None
-        if not parsed.value and not title and not new_assignee:
-            return Intent(
-                kind="clarify",
-                message=f"请说明要怎么修改 {task_no}。",
-                rule_id="UPDATE_MISSING_FIELDS",
-            )
+    if not update_command:
+        if _looks_question(clean) or _looks_negative_instruction(clean):
+            return Intent(kind="detail", task_no=task_no, rule_id="TASK_STATUS_QUESTION")
+        return None
+
+    if re.match(r"^(?:不要|别|不用|无需)", clean):
         return Intent(
-            kind="update",
+            kind="clarify",
             task_no=task_no,
-            title=title,
-            due_at=parsed.value,
-            new_assignee=new_assignee,
-            rule_id="UPDATE_BY_NO",
+            message=f"没有修改 {task_no}。请直接说明要修改的字段和新值。",
+            rule_id="UPDATE_NON_MUTATING",
         )
-    return None
+
+    parsed = parse_chinese_datetime(clean, now)
+    if parsed.error:
+        return Intent(
+            kind="clarify",
+            task_no=task_no,
+            message=parsed.error,
+            rule_id="UPDATE_TIME_AMBIGUOUS",
+        )
+
+    reminder_interval, interval_error = _parse_reminder_interval(clean)
+    if interval_error:
+        return Intent(
+            kind="clarify",
+            task_no=task_no,
+            message=interval_error,
+            rule_id="UPDATE_REMINDER_INTERVAL",
+        )
+
+    alias_re = _alias_pattern(aliases)
+    new_assignee = None
+    if alias_re:
+        person_match = re.search(
+            rf"(?:转给|改给|负责人\s*(?:修改|更新|调整|变更|改成|改为)?\s*(?:是|为)?)\s*"
+            rf"({alias_re}|{SELF_REFERENCE_RE})",
+            clean,
+        )
+        if person_match:
+            raw_person = person_match.group(1)
+            new_assignee = self_name if _is_self_reference(raw_person) else aliases[raw_person]
+            if not new_assignee:
+                return Intent(
+                    kind="clarify",
+                    task_no=task_no,
+                    message="当前渠道没有绑定负责人，不能把任务转给“我”。",
+                    rule_id="SELF_NOT_BOUND",
+                )
+
+    boundary = r"(?=\s*[,，;；]\s*(?:截止时间|截止日期|时间|标题|任务名称|任务内容|内容|具体要求|负责人|提醒)|$)"
+
+    def changed_value(label: str) -> str | None:
+        match = re.search(
+            rf"(?:{label})\s*(?:修改为|更新为|改动为|变更为|改成|改为|调整为|为|成)\s*(.+?){boundary}",
+            clean,
+        )
+        return match.group(1).strip(" \"'“”‘’") if match else None
+
+    title = changed_value(r"标题|任务名称")
+    new_content = changed_value(r"任务内容|内容|具体要求")
+    if not title and not new_content and not parsed.value and not new_assignee and reminder_interval is None and not toggle_reminder:
+        generic = re.search(
+            rf"(?:把\s*)?(?:任务)?\s*{token}\s*(?:修改为|更新为|改动为|变更为|改成|改为|调整为)\s*(.+)$|"
+            rf"(?:修改|更新|调整|变更)\s*(?:任务)?\s*{token}\s*(?:为|成)\s*(.+)$",
+            clean,
+        )
+        if generic:
+            candidate = _remove_time_phrases(generic.group(1) or generic.group(2), parsed)
+            title = candidate.strip(" ,，。\"'“”‘’") or None
+
+    remind_enabled = None
+    if toggle_reminder:
+        remind_enabled = not bool(re.search(r"关闭|停止|暂停|取消", clean))
+
+    if not any(
+        (
+            parsed.value,
+            title,
+            new_content,
+            new_assignee,
+            reminder_interval,
+            remind_enabled is not None,
+        )
+    ):
+        return Intent(
+            kind="clarify",
+            task_no=task_no,
+            message=(
+                f"请说明要怎么修改 {task_no}。可修改标题、内容、截止时间、负责人和提醒频率。"
+            ),
+            rule_id="UPDATE_MISSING_FIELDS",
+        )
+    return Intent(
+        kind="update",
+        task_no=task_no,
+        title=title,
+        new_content=new_content,
+        due_at=parsed.value,
+        preserve_due_date=bool(parsed.value and not _has_explicit_date_phrase(clean)),
+        new_assignee=new_assignee,
+        remind_enabled=remind_enabled,
+        remind_interval_minutes=reminder_interval,
+        rule_id="UPDATE_BY_NO",
+    )
+
+
+def _multi_complete_intents(
+    text: str,
+    aliases: dict[str, str],
+    self_name: str | None,
+    now: datetime,
+) -> list[Intent] | None:
+    """只放行语义明确的批量完成，混合操作继续交给原有澄清规则。"""
+    clean = normalize_text(text).strip("。.!！ ")
+    task_nos = [f"T{int(item)}" for item in TASK_NO_RE.findall(clean)]
+    if len(dict.fromkeys(task_nos)) < 2:
+        return None
+
+    # 同时兼容“完成T7，完成T17”和“完成T7和T17”。
+    clean = re.sub(
+        r"(?<=\d)\s*(?:和|及|与)\s*(?=(?i:T\s*0*[1-9]\d*))",
+        "，",
+        clean,
+    )
+    parts = [part.strip() for part in re.split(r"[，,、;；\n]+", clean) if part.strip()]
+    if len(parts) < 2:
+        return None
+
+    intents: list[Intent] = []
+    seen: set[str] = set()
+    bare_task = re.compile(r"(?i:T\s*0*[1-9]\d*)")
+    for part in parts:
+        if bare_task.fullmatch(part):
+            part = f"完成{part}"
+        intent = _task_number_intent(part, aliases, self_name, now)
+        if not intent or intent.kind != "complete" or not intent.task_no:
+            return None
+        if intent.task_no not in seen:
+            seen.add(intent.task_no)
+            intents.append(intent)
+    return intents if len(intents) > 1 else None
 
 
 def _list_intent(text: str, aliases: dict[str, str]) -> Intent | None:
@@ -746,7 +954,7 @@ def _list_intent(text: str, aliases: dict[str, str]) -> Intent | None:
 
     mine_direct = re.fullmatch(
         r"(?:请)?(?:查看|查询|列出|展示|显示|看看)?(?:一下)?"
-        r"(?:我的|我)(?:的)?(?:待办|任务|活)(?:清单|列表)?(?:情况)?",
+        rf"{SELF_REFERENCE_RE}(?:的)?(?:待办|任务|活)(?:清单|列表)?(?:情况)?",
         clean,
     )
     if mine_direct:
@@ -803,7 +1011,8 @@ def _list_intent(text: str, aliases: dict[str, str]) -> Intent | None:
             )
 
     mine = re.fullmatch(
-        r"(?:我|自己)\s*(?:还)?(?:有|剩下)(?:什么|哪些|多少)?(?:活|任务|待办)(?:要做)?",
+        rf"{SELF_REFERENCE_RE}\s*(?:还)?(?:有|剩下)(?:什么|哪些|多少)?"
+        r"(?:活|任务|待办)(?:要做)?",
         clean,
     )
     if mine:
@@ -814,7 +1023,9 @@ def _list_intent(text: str, aliases: dict[str, str]) -> Intent | None:
 def _clean_assignment_body(body: str) -> str:
     body = normalize_text(body)
     body = re.sub(
-        r"^(?:安排|交代|指派)(?:一下|一个)?(?:任务|工作)?\s*[,，:：、]?\s*",
+        rf"^{ASSIGNMENT_VERB_RE}\s*(?:一下|一个|个|一项|项)?\s*"
+        r"(?:(?:任务|待办|工作)\s*[,，:：、]?\s*(?:(?:内容)?(?:是|为))?)?"
+        r"\s*[,，:：、]?\s*",
         "",
         body,
     )
@@ -832,13 +1043,18 @@ def _non_mutating_assignment(raw_text: str, body: str) -> bool:
     clean_body = _clean_assignment_body(body)
     if not clean_body:
         return False
+    semantic_body = re.sub(
+        r"(?:不设|无需|没有)(?:置)?(?:截止时间|截止日期|期限)",
+        "",
+        clean_body,
+    ).strip(" ,，:：、。.!！")
     if _looks_meta(raw):
         return True
-    if _looks_negative_instruction(clean_body):
+    if _looks_negative_instruction(semantic_body):
         return True
-    if re.match(r"^(?:看看|查看|查询|显示|列出|介绍|告诉我|查一下|看一下)", clean_body):
+    if re.match(r"^(?:看看|查看|查询|显示|列出|介绍|告诉我|查一下|看一下)", semantic_body):
         return True
-    if _looks_question(clean_body):
+    if _looks_question(semantic_body):
         return True
     return False
 
@@ -865,10 +1081,41 @@ def _build_create(
             message=f"要给{assignee}安排什么任务？",
             rule_id="CREATE_MISSING_BODY",
         )
-    parsed = parse_chinese_datetime(body, now)
+    no_due = bool(re.search(r"(?:不设|无需|没有)(?:置)?(?:截止时间|截止日期|期限)", body))
+    if no_due and re.search(
+        r"今天|明天|后天|周[一二三四五六日天]|星期[一二三四五六日天]|"
+        r"上午|下午|晚上|\d{1,2}:\d{2}|\d{1,2}点",
+        body,
+    ):
+        return Intent(
+            kind="clarify",
+            assignee=assignee,
+            message="这句话同时包含具体时间和“不设截止时间”，请只保留一种。",
+            rule_id="CREATE_DUE_CONFLICT",
+        )
+    parse_body = re.sub(
+        r"(?:不设|无需|没有)(?:置)?(?:截止时间|截止日期|期限)",
+        "",
+        body,
+    ).strip(" ,，:：、。.!！")
+    parsed = parse_chinese_datetime(parse_body, now)
     if parsed.error:
         return Intent(kind="clarify", assignee=assignee, message=parsed.error, rule_id="CREATE_TIME_AMBIGUOUS")
-    title = _remove_time_phrases(body, parsed) if parsed.value else body
+    if not no_due and parsed.value is None:
+        return Intent(
+            kind="clarify",
+            assignee=assignee,
+            message="请补充截止日期和时间，例如“周四下午2点”；也可以明确说“不设截止时间”。",
+            rule_id="CREATE_MISSING_DUE",
+        )
+    if not no_due and not _has_explicit_date_phrase(parse_body):
+        return Intent(
+            kind="clarify",
+            assignee=assignee,
+            message="已经识别到具体时间，但还缺少日期，请补充“今天、明天、周几”或明确日期。",
+            rule_id="CREATE_MISSING_DATE",
+        )
+    title = _remove_time_phrases(parse_body, parsed) if parsed.value else parse_body
     title = re.sub(r"^的\s*", "", title).strip(" ,，:：、。.!！")
     if not title:
         title = body
@@ -876,7 +1123,7 @@ def _build_create(
         kind="create",
         assignee=assignee,
         title=title[:240],
-        content=body,
+        content=parse_body,
         due_at=parsed.value,
         rule_id=rule_id,
     )
@@ -888,9 +1135,9 @@ def _assignment_intent(
     self_name: str | None,
     now: datetime,
 ) -> Intent | None:
-    clean = normalize_text(text).strip()
+    clean = normalize_task_command(text).strip()
     alias_re = _alias_pattern(aliases)
-    person_re = rf"(?:{alias_re}|我)" if alias_re else r"我"
+    person_re = rf"(?:{alias_re}|{SELF_REFERENCE_RE})" if alias_re else SELF_REFERENCE_RE
     if _multiple_assignees(clean, aliases, self_name):
         return Intent(
             kind="clarify",
@@ -900,9 +1147,14 @@ def _assignment_intent(
 
     patterns = (
         (
-            rf"^(?:请|麻烦|帮我|帮忙)?\s*给\s*(?P<person>{person_re})\s*"
-            rf"(?P<body>(?:安排|交代|指派|新增|创建)(?:一下|一个)?(?:任务|待办|工作)?.*)$",
+            rf"^(?:我\s*)?(?:请|麻烦|帮我|帮忙)?\s*给\s*(?P<person>{person_re})\s*"
+            rf"(?P<body>{ASSIGNMENT_VERB_RE}(?:一下|一个)?(?:任务|待办|工作)?.*)$",
             "ASSIGN_EXPLICIT",
+        ),
+        (
+            rf"^(?:请|麻烦|帮我|帮忙)?\s*{ASSIGNMENT_VERB_RE}\s*(?P<person>{person_re})\s*"
+            rf"(?:任务|待办|工作)?\s*[,，:：、]?\s*(?P<body>.+)$",
+            "ASSIGN_ARRANGE_PERSON",
         ),
         (
             rf"^(?:请|麻烦|帮我|帮忙)?\s*(?P<verb>让|叫|通知)\s*"
@@ -931,9 +1183,9 @@ def _assignment_intent(
         if not match:
             continue
         person = match.group("person")
-        if person == "我" and rule_id != "ASSIGN_EXPLICIT":
+        if _is_self_reference(person) and rule_id != "ASSIGN_EXPLICIT":
             return None
-        assignee = self_name if person == "我" else aliases.get(person)
+        assignee = self_name if _is_self_reference(person) else aliases.get(person)
         if not assignee:
             return Intent(
                 kind="clarify",
@@ -977,7 +1229,7 @@ def _assignment_intent(
     unknown = re.match(
         r"^(?:请|麻烦|帮我|帮忙)?\s*(?:给|让|通知)\s*"
         r"(?P<person>[\u4e00-\u9fffA-Za-z0-9_-]{1,12})\s*"
-        r"(?:安排|交代|指派)(?:一下|一个)?(?:任务|工作)?",
+        rf"{ASSIGNMENT_VERB_RE}(?:一下|一个)?(?:任务|待办|工作)?",
         clean,
     )
     if unknown and unknown.group("person") not in aliases:
@@ -988,6 +1240,58 @@ def _assignment_intent(
             rule_id="UNKNOWN_ASSIGNEE",
         )
     return None
+
+
+def _shared_assignment_intents(
+    text: str,
+    aliases: dict[str, str],
+    self_name: str | None,
+    now: datetime,
+) -> list[Intent] | None:
+    """将一个明确的共同任务拆成每位负责人各自的一项任务。"""
+    if not aliases or TASK_NO_RE.search(text):
+        return None
+    alias_re = _alias_pattern(aliases)
+    pair = re.search(
+        rf"({alias_re}|{SELF_REFERENCE_RE})\s*{ASSIGNEE_CONNECTOR_RE}\s*"
+        rf"({alias_re}|{SELF_REFERENCE_RE})",
+        normalize_text(text),
+    )
+    if not pair:
+        return None
+
+    assignees = []
+    for raw in (pair.group(1), pair.group(2)):
+        assignee = self_name if _is_self_reference(raw) else aliases.get(raw)
+        if not assignee:
+            return [
+                Intent(
+                    kind="clarify",
+                    message="当前渠道还没有绑定负责人，不能把“我”当作任务负责人。",
+                    rule_id="SELF_NOT_BOUND",
+                )
+            ]
+        if assignee not in assignees:
+            assignees.append(assignee)
+    if len(assignees) < 2:
+        return None
+
+    single_text = f"{text[:pair.start()]}{assignees[0]}{text[pair.end():]}"
+    intent = _assignment_intent(single_text, aliases, self_name, now)
+    if not intent:
+        return None
+    if intent.kind == "create":
+        return [
+            Intent(**{**intent.__dict__, "assignee": assignee, "rule_id": "ASSIGN_SHARED"})
+            for assignee in assignees
+        ]
+    if intent.kind == "clarify":
+        names = "和".join(assignees)
+        message = intent.message
+        if intent.rule_id == "CREATE_MISSING_BODY":
+            message = f"要给{names}安排什么共同任务？"
+        return [Intent(**{**intent.__dict__, "assignee": None, "message": message})]
+    return [intent]
 
 
 def _split_numbered_items(text: str) -> tuple[str, list[str]] | None:
@@ -1007,7 +1311,11 @@ def _split_numbered_items(text: str) -> tuple[str, list[str]] | None:
 def _has_item_assignee_surface(text: str, aliases: dict[str, str]) -> bool:
     clean = normalize_text(text)
     polite = r"(?:请|麻烦|帮我|帮忙)?\s*"
-    known_people = rf"(?:{_alias_pattern(aliases)}|我)" if aliases else r"我"
+    known_people = (
+        rf"(?:{_alias_pattern(aliases)}|{SELF_REFERENCE_RE})"
+        if aliases
+        else SELF_REFERENCE_RE
+    )
     any_person = r"[\u4e00-\u9fffA-Za-z0-9_-]{1,12}"
     return bool(
         re.match(rf"^{polite}(?:给|让|叫|通知|需要)\s*(?:{known_people}|{any_person})", clean)
@@ -1025,7 +1333,7 @@ def parse_message(
     now: datetime | None = None,
     configured_aliases: dict[str, str] | None = None,
 ) -> list[Intent] | None:
-    clean = normalize_text(text)
+    clean = normalize_task_command(text)
     if not clean or clean.startswith(("/", "!")):
         return None
     now = (now or datetime.now(SHANGHAI)).astimezone(SHANGHAI)
@@ -1039,8 +1347,11 @@ def parse_message(
         assignment_surface = bool(
             alias_re
             and (
-                re.search(rf"(?:给|让|叫|通知|需要)\s*(?:{alias_re}|我)", clean)
-                or re.search(rf"交给\s*(?:{alias_re}|我)", clean)
+                re.search(
+                    rf"(?:给|让|叫|通知|需要)\s*(?:{alias_re}|{SELF_REFERENCE_RE})",
+                    clean,
+                )
+                or re.search(rf"交给\s*(?:{alias_re}|{SELF_REFERENCE_RE})", clean)
             )
         )
         if assignment_surface:
@@ -1095,6 +1406,14 @@ def parse_message(
         if parsed_items:
             return parsed_items
 
+    shared_assignment = _shared_assignment_intents(clean, aliases, self_name, now)
+    if shared_assignment:
+        return shared_assignment
+
+    multi_complete = _multi_complete_intents(clean, aliases, self_name, now)
+    if multi_complete:
+        return multi_complete
+
     numbered_intent = _task_number_intent(clean, aliases, self_name, now)
     if numbered_intent:
         if _calendar_requested(clean):
@@ -1114,12 +1433,16 @@ def parse_message(
         return [Intent(kind="complete_all", assignee=self_name, rule_id="COMPLETE_ALL")]
 
     bare_complete = re.fullmatch(
-        rf"(?:(?P<person>{_alias_pattern(aliases)}|我)\s*)?(?:{'|'.join(COMPLETE_WORDS)})了?",
+        rf"(?:(?P<person>{_alias_pattern(aliases)}|{SELF_REFERENCE_RE})\s*)?"
+        rf"(?:{'|'.join(COMPLETE_WORDS)})了?",
         clean.strip("。.!！ "),
-    ) if aliases else re.fullmatch(r"我?\s*(?:完成|做完|干完|搞定|办完)了?", clean)
+    ) if aliases else re.fullmatch(
+        rf"(?:{SELF_REFERENCE_RE})?\s*(?:完成|做完|干完|搞定|办完)了?",
+        clean,
+    )
     if bare_complete:
         person = bare_complete.groupdict().get("person") if hasattr(bare_complete, "groupdict") else None
-        assignee = self_name if not person or person == "我" else aliases.get(person)
+        assignee = self_name if not person or _is_self_reference(person) else aliases.get(person)
         if not assignee:
             return [Intent(kind="clarify", message="当前渠道还没有绑定负责人。", rule_id="SELF_NOT_BOUND")]
         if assignee != self_name:
@@ -1133,35 +1456,40 @@ def parse_message(
 
 
 def looks_like_task_message(text: str) -> bool:
-    clean = normalize_text(text)
+    clean = normalize_task_command(text)
     if not clean or clean.startswith(("/", "!")):
         return False
     return bool(
         TASK_NO_RE.search(clean)
         or is_complete_all_command(clean)
         or re.search(r"任务|待办|回收站|还有什么活|有哪些活", clean)
-        or re.search(r"给|让|通知|交给|负责|需要|安排|干完|做完|搞定", clean)
+        or re.search(r"给|让|通知|交给|负责|需要|安排|布置|分配|指派|派发|干完|做完|搞定", clean)
     )
 
 
 def looks_like_explicit_task_message(text: str) -> bool:
-    clean = normalize_text(text)
+    clean = normalize_task_command(text)
     if not clean:
         return False
     named_people = (
         r"杰哥(?!们|哥|姐|弟|妹)|靓仔(?!们)|"
-        r"敏总(?!监|经理|裁|管|助理|秘书|们)|姐(?!姐|夫|妹|弟|们)|"
-        r"振华(?!们)"
+        r"敏总(?!监|经理|裁|管|助理|秘书|们)|姐(?!姐|夫|妹|弟|们)"
     )
-    people = rf"(?:{named_people}|我)"
+    people = rf"(?:{named_people}|{SELF_REFERENCE_RE})"
     assignment_surface = bool(
         re.search(
-            rf"给\s*(?:{people})\s*(?:安排|交代|指派|新增|创建)(?:一下|一个)?(?:任务|待办|工作)?",
+            rf"给\s*(?:{people})\s*{ASSIGNMENT_VERB_RE}(?:一下|一个)?(?:任务|待办|工作)?",
             clean,
         )
-        or re.search(rf"(?:让|叫|通知|需要)\s*(?:{named_people})", clean)
-        or re.search(rf"(?:{named_people})\s*(?:需要|要|负责|还有什么活)", clean)
-        or re.search(r"(?:给|让|通知)\s*[\u4e00-\u9fffA-Za-z0-9_-]{1,12}\s*(?:安排|交代|指派)", clean)
+        or re.search(rf"给\s*[\u4e00-\u9fffA-Za-z0-9_-]{{1,12}}\s*{ASSIGNMENT_VERB_RE}", clean)
+        or re.search(
+            rf"(?:请|麻烦|帮我|帮忙)?\s*{ASSIGNMENT_VERB_RE}\s*(?:{people})\s*(?:任务|待办|工作)?\s*[,，:：、]?\s*.+",
+            clean,
+        )
+        or re.search(
+            rf"(?:请|麻烦|帮我|帮忙)?\s*{ASSIGNMENT_VERB_RE}\s*[\u4e00-\u9fffA-Za-z0-9_-]{{1,12}}\s*(?:任务|待办|工作)?\s*[,，:：、]?\s*.+",
+            clean,
+        )
     )
     if _looks_meta(clean):
         return bool(
@@ -1172,6 +1500,12 @@ def looks_like_explicit_task_message(text: str) -> bool:
     if _calendar_requested(clean):
         return assignment_surface
     if re.fullmatch(r"(?i)\s*T\s*0*[1-9]\d*\s*", clean):
+        return True
+    if re.search(
+        r"(?:关闭|停止|暂停|取消|开启|启用|恢复)\s*(?:任务)?\s*(?i:T\s*0*[1-9]\d*)\s*(?:的)?提醒|"
+        r"(?i:T\s*0*[1-9]\d*)\s*(?:的)?提醒\s*(?:关闭|停止|暂停|取消|开启|启用|恢复)",
+        clean,
+    ):
         return True
     if TASK_NO_RE.search(clean) and _contains_any(
         clean,
@@ -1184,6 +1518,49 @@ def looks_like_explicit_task_message(text: str) -> bool:
         assignment_surface
         or is_complete_all_command(clean)
         or re.fullmatch(rf"(?:(?:{people})\s*)?(?:完成|做完|干完|搞定|办完)了?", clean)
+    )
+
+
+def task_capability_targets(text: str) -> tuple[str, ...]:
+    """返回能力咨询中的一个或多个负责人；能力咨询本身不创建任务。"""
+    clean = normalize_task_command(text).strip("。.!！ ")
+    if not _looks_question(clean):
+        return ()
+    people = rf"杰哥|靓仔|敏总|姐|{SELF_REFERENCE_RE}"
+    match = re.search(
+        r"(?:能不能|可不可以|是否能|能否|可以|能)\s*给\s*"
+        rf"(?P<first>{people})(?:\s*{ASSIGNEE_CONNECTOR_RE}\s*(?P<second>{people}))?\s*"
+        rf"{ASSIGNMENT_VERB_RE}(?:一下|一个)?(?:任务|待办|工作)?",
+        clean,
+    )
+    if not match:
+        return ()
+    result = []
+    for raw in (match.group("first"), match.group("second")):
+        if not raw:
+            continue
+        person = "我" if _is_self_reference(raw) else DEFAULT_STAFF_ALIASES.get(raw, raw)
+        if person not in result:
+            result.append(person)
+    return tuple(result)
+
+
+def task_capability_target(text: str) -> str | None:
+    targets = task_capability_targets(text)
+    return targets[0] if len(targets) == 1 else None
+
+
+def task_capability_reply(text: str) -> str | None:
+    """回答“能不能给某人安排任务”，不把咨询误执行成任务。"""
+    people = task_capability_targets(text)
+    if not people:
+        return None
+    targets = ["自己" if person == "我" else person for person in people]
+    target = "和".join(targets)
+    scope = "同一项任务" if len(targets) > 1 else "任务"
+    return (
+        f"可以给{target}安排{scope}。请告诉我任务内容、截止日期和时间，"
+        f"例如：给{target}安排任务：周四18点前完成项目测试。"
     )
 
 
@@ -1303,10 +1680,16 @@ class TaskApi:
         payload: dict[str, Any] = {"operator_name": operator}
         if intent.title:
             payload["title"] = intent.title
+        if intent.new_content is not None:
+            payload["content"] = intent.new_content
         if intent.due_at:
             payload["due_at"] = intent.due_at.replace(tzinfo=None).isoformat(timespec="minutes")
         if intent.new_assignee:
             payload["assignee_id"] = staff_by_name[intent.new_assignee].id
+        if intent.remind_enabled is not None:
+            payload["remind_enabled"] = intent.remind_enabled
+        if intent.remind_interval_minutes is not None:
+            payload["remind_interval_minutes"] = intent.remind_interval_minutes
         return self.request("PATCH", f"/api/v1/tasks/{task['id']}", payload)
 
     def action(self, action: str, task: dict[str, Any], operator: str) -> dict[str, Any]:
@@ -1362,6 +1745,17 @@ def _due_label(value: str | datetime | None) -> str:
     return parsed.strftime("%m-%d %H:%M")
 
 
+def _reminder_label(task: dict[str, Any]) -> str:
+    if not task.get("remind_enabled", True):
+        return "已关闭"
+    minutes = int(task.get("remind_interval_minutes") or 300)
+    if minutes % 1440 == 0:
+        return f"每 {minutes // 1440} 天提醒一次"
+    if minutes % 60 == 0:
+        return f"每 {minutes // 60} 小时提醒一次"
+    return f"每 {minutes} 分钟提醒一次"
+
+
 def _status_label(value: str, deleted_at: Any = None) -> str:
     if deleted_at:
         return "🗑️ 已删除"
@@ -1372,7 +1766,16 @@ def _escape_table(value: Any) -> str:
     return str(value or "").replace("|", "｜").replace("\r", " ").replace("\n", " ").strip()
 
 
-def format_task_list(tasks: list[dict[str, Any]], lead: str = "") -> str:
+def _markdown_reply(content: str, creator: str) -> str:
+    greeting = _escape_table(creator)
+    return f"{greeting}，\n\n{content}" if greeting else content
+
+
+def format_task_list(
+    tasks: list[dict[str, Any]],
+    lead: str = "",
+    title: str = "任务清单",
+) -> str:
     todo = sum(1 for item in tasks if item.get("status") == "todo" and not item.get("deleted_at"))
     doing = sum(1 for item in tasks if item.get("status") == "doing" and not item.get("deleted_at"))
     done = sum(1 for item in tasks if item.get("status") == "done" and not item.get("deleted_at"))
@@ -1381,7 +1784,7 @@ def format_task_list(tasks: list[dict[str, Any]], lead: str = "") -> str:
         lines.extend((lead, ""))
     lines.extend(
         (
-            "## 📋 任务清单",
+            f"## 📋 {title}",
             f"> 共 {len(tasks)} 项｜待办 {todo}｜进行中 {doing}｜已完成 {done}",
             "",
         )
@@ -1419,7 +1822,7 @@ def format_detail(task: dict[str, Any]) -> str:
             f"- 截止：{_due_label(task.get('due_at'))}",
             f"- 安排人：{task.get('creator_name') or '未记录'}",
             f"- 具体要求：{content}",
-            "- 提醒：未完成时每 5 小时提醒一次",
+            f"- 提醒：{_reminder_label(task)}",
         )
     )
 
@@ -1562,25 +1965,72 @@ class TaskRouter:
                 self.api.create_task(intent, assignee, creator, platform, source_id)
             )
         if created:
-            if len(created) == 1:
-                item = created[0]
-                return "\n".join(
-                    (
-                        f"✅ 任务已创建：{item['task_no']}",
-                        f"负责人：{item['assignee_name']}",
-                        f"任务：{item['title']}",
-                        f"截止：{_due_label(item.get('due_at'))}",
-                        f"已安排立即通知{item['assignee_name']}；未完成时每 5 小时提醒。",
-                    )
-                )
-            lines = [f"✅ 已创建 {len(created)} 项任务", "", "| 编号 | 负责人 | 任务 | 截止 |", "|---|---|---|---|"]
+            lines = [
+                "## ✅ 任务安排成功",
+                f"> 已创建 {len(created)} 项任务",
+                "",
+                "| 编号 | 负责人 | 任务 | 截止时间 |",
+                "|---|---|---|---|",
+            ]
             for item in created:
                 lines.append(
                     f"| {item['task_no']} | {item['assignee_name']} | "
                     f"{_escape_table(item['title'])} | {_due_label(item.get('due_at'))} |"
                 )
-            lines.extend(("", "已安排立即通知各负责人；未完成时每 5 小时提醒。"))
-            return "\n".join(lines)
+            target = created[0]["assignee_name"] if len(created) == 1 else "各负责人"
+            lines.extend(("", f"已安排立即通知{target}；未完成时每 5 小时提醒。"))
+            return _markdown_reply("\n".join(lines), creator)
+
+        if len(intents) > 1 and all(item.kind == "complete" for item in intents):
+            if not self_name or not recipient_id:
+                return "当前发送账号没有绑定负责人，无法完成任务。"
+            rows: list[tuple[str, str, str]] = []
+            success_count = 0
+            for item in intents:
+                task_no = item.task_no or ""
+                try:
+                    task = self.api.get_task(task_no, include_deleted=True)
+                    title = str(task.get("title") or "未命名任务")
+                    if task.get("deleted_at"):
+                        rows.append((task_no, title, "❌ 任务已删除"))
+                        continue
+                    if task.get("assignee_name") != self_name:
+                        rows.append((task_no, title, "❌ 只能完成自己的任务"))
+                        continue
+                    if task.get("status") != "done":
+                        self.api.complete_from_channel(
+                            platform,
+                            recipient_id,
+                            task_no=task_no,
+                        )
+                    verified = self.api.get_task(task_no, include_deleted=True)
+                    if verified.get("status") != "done":
+                        rows.append((task_no, title, "❌ 后台未确认"))
+                        continue
+                    success_count += 1
+                    result_label = "✅ 已完成"
+                    if task.get("status") == "done":
+                        result_label = "✅ 已完成（无需重复）"
+                    rows.append((task_no, title, result_label))
+                except Exception:
+                    logger.exception("批量完成任务失败：%s", task_no)
+                    rows.append((task_no, "未找到任务", "❌ 处理失败"))
+
+            failure_count = len(rows) - success_count
+            lines = [
+                "## ✅ 任务完成汇总",
+                f"> 已确认 {success_count} 项｜失败 {failure_count} 项",
+                "",
+                "| 编号 | 任务 | 结果 |",
+                "|---|---|---|",
+            ]
+            lines.extend(
+                f"| {task_no} | {_escape_table(title)} | {status} |"
+                for task_no, title, status in rows
+            )
+            if success_count:
+                lines.extend(("", "已完成任务的后续提醒已停止。"))
+            return _markdown_reply("\n".join(lines), creator)
 
         intent = intents[0]
         if intent.kind in {"list", "list_self"}:
@@ -1591,7 +2041,7 @@ class TaskRouter:
                     return "当前发送账号没有绑定负责人，无法判断“我的任务”指谁。"
             assignee_id = staff_by_name[assignee_name].id if assignee_name in staff_by_name else None
             result = self.api.list_tasks(intent.state, assignee_id)
-            return format_task_list(result["items"])
+            return _markdown_reply(format_task_list(result["items"]), creator)
 
         if intent.kind == "complete_unique":
             assignee = staff_by_name.get(intent.assignee or "")
@@ -1600,9 +2050,12 @@ class TaskRouter:
             result = self.api.list_tasks("active", assignee.id)
             tasks = result["items"]
             if len(tasks) != 1:
-                return format_task_list(
-                    tasks,
-                    lead="请回复具体任务编号，例如“完成 T2”。" if tasks else "你当前没有未完成任务。",
+                return _markdown_reply(
+                    format_task_list(
+                        tasks,
+                        lead="请回复具体任务编号，例如“完成 T2”。" if tasks else "你当前没有未完成任务。",
+                    ),
+                    creator,
                 )
             result = self.api.complete_from_channel(
                 platform,
@@ -1627,12 +2080,42 @@ class TaskRouter:
 
         task = self.api.get_task(intent.task_no or "", include_deleted=True)
         if intent.kind == "detail":
-            return format_detail(task)
+            return _markdown_reply(format_detail(task), creator)
         if intent.kind == "update":
+            if intent.due_at and intent.preserve_due_date:
+                current_due = task.get("due_at")
+                if not current_due:
+                    return f"{task['task_no']} 当前没有截止日期，请同时说明新的日期和时间。"
+                current_due_at = datetime.fromisoformat(str(current_due).replace("Z", "+00:00"))
+                if current_due_at.tzinfo is not None:
+                    current_due_at = current_due_at.astimezone(SHANGHAI).replace(tzinfo=None)
+                due_at = datetime.combine(
+                    current_due_at.date(),
+                    intent.due_at.time(),
+                    tzinfo=SHANGHAI,
+                )
+                if due_at <= datetime.now(SHANGHAI):
+                    return f"{task['task_no']} 原日期已经过去，请同时说明新的日期和时间。"
+                intent = Intent(
+                    **{
+                        **intent.__dict__,
+                        "due_at": due_at,
+                        "preserve_due_date": False,
+                    }
+                )
             task = self.api.update_task(task, intent, creator, staff_by_name)
-            return (
-                f"✅ {task['task_no']} 已修改\n负责人：{task['assignee_name']}\n"
-                f"任务：{task['title']}\n截止：{_due_label(task.get('due_at'))}"
+            return _markdown_reply(
+                "\n".join(
+                    (
+                        f"## ✅ {task['task_no']} 已修改",
+                        f"- 负责人：{task['assignee_name']}",
+                        f"- 任务：{task['title']}",
+                        f"- 内容：{str(task.get('content') or '').strip() or '无补充要求'}",
+                        f"- 截止：{_due_label(task.get('due_at'))}",
+                        f"- 提醒：{_reminder_label(task)}",
+                    )
+                ),
+                creator,
             )
         if intent.kind in {"complete", "delete", "restore", "reopen"}:
             if intent.kind == "complete":
@@ -1648,6 +2131,14 @@ class TaskRouter:
                 task = result["items"][0]
             else:
                 task = self.api.action(intent.kind, task, creator)
+            if intent.kind == "complete":
+                verified = self.api.get_task(task["task_no"], include_deleted=True)
+                if verified.get("status") != "done":
+                    return _markdown_reply(
+                        f"## ⚠️ 任务状态未确认\n\n{task['task_no']} 暂未确认完成，请稍后重试。",
+                        creator,
+                    )
+                task = verified
             labels = {
                 "complete": "已完成，后续提醒已停止",
                 "delete": "已删除，可在回收站恢复",
@@ -1656,3 +2147,29 @@ class TaskRouter:
             }
             return f"✅ {task['task_no']} {labels[intent.kind]}：{task['title']}"
         return None
+
+    def created_assignees_summary(self, prepared: PreparedRoute) -> str | None:
+        names = list(
+            dict.fromkeys(
+                item.assignee
+                for item in prepared.intents
+                if item.kind == "create" and item.assignee
+            )
+        )
+        if not names:
+            return None
+        staff_by_name = self._staff_by_name(prepared.staff)
+        tasks: list[dict[str, Any]] = []
+        seen: set[Any] = set()
+        for name in names:
+            staff = staff_by_name.get(name)
+            if not staff:
+                continue
+            for task in self.api.list_tasks("active", staff.id).get("items", []):
+                key = task.get("id") or task.get("task_no")
+                if key in seen:
+                    continue
+                seen.add(key)
+                tasks.append(task)
+        title = f"{names[0]}的任务清单" if len(names) == 1 else "相关负责人的任务清单"
+        return _markdown_reply(format_task_list(tasks, title=title), prepared.creator)

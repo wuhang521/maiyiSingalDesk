@@ -18,6 +18,8 @@ from .channel_subscription_models import ChannelPushConfig, ChannelSubscription
 from .channel_website import validate_website_config
 from .database import get_db
 from .models import SmartChannel, Staff, StaffChannel, UserAccount, utcnow
+from .member_service import load_member
+from .page_access import can_access
 
 
 router = APIRouter(prefix="/api/v1/channel-subscriptions", tags=["channel-subscriptions"])
@@ -78,6 +80,19 @@ class ChannelAudience(BaseModel):
         return None if ids is None else sorted(set(ids))
 
 
+class MemberSubscriptionDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    previous_channel_ids: list[ChannelId] = Field(max_length=1000)
+    channel_ids: list[ChannelId] = Field(max_length=1000)
+    binding_revision: str | None = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @field_validator("previous_channel_ids", "channel_ids")
+    @classmethod
+    def normalize_channels(cls, ids: list[str]) -> list[str]:
+        return sorted(set(ids))
+
+
 def subscription_allowed(channel: SmartChannel, user_id: int) -> bool:
     return channel.subscription_user_ids is None or user_id in channel.subscription_user_ids
 
@@ -120,6 +135,18 @@ def subscription_matches(subscription: ChannelSubscription | None, binding: Staf
                 and subscription.binding_fingerprint == binding_fingerprint(binding))
 
 
+def update_subscription(db: Session, channel_id: str, user_id: int, binding: StaffChannel,
+                        subscription: ChannelSubscription | None) -> None:
+    if subscription_matches(subscription, binding):
+        return
+    if subscription is None:
+        subscription = ChannelSubscription(channel_id=channel_id, user_id=user_id)
+        db.add(subscription)
+    subscription.binding_id = binding.id
+    subscription.binding_fingerprint = binding_fingerprint(binding)
+    subscription.created_at = utcnow()
+
+
 def channel_push_settings(channel: SmartChannel, config: ChannelPushConfig | None) -> dict:
     if config is not None:
         return dict(id=channel.id, name=config.name, description=config.description, enabled=config.enabled,
@@ -132,8 +159,20 @@ def channel_push_settings(channel: SmartChannel, config: ChannelPushConfig | Non
                 include_terms=channel.include_terms or [], exclude_terms=channel.exclude_terms or [])
 
 
+def grouped_website_sources(db: Session, channel_id: str) -> tuple[str, ...]:
+    return tuple(db.scalars(select(ChannelPushConfig.channel_id)
+                            .join(SmartChannelAlias, SmartChannelAlias.alias_id == ChannelPushConfig.channel_id)
+                            .where(SmartChannelAlias.canonical_id == channel_id, ChannelPushConfig.source_type == "website")
+                            .order_by(ChannelPushConfig.name, ChannelPushConfig.channel_id)).all())
+
+
 def locked_channel(db: Session, channel_id: str) -> SmartChannel | None:
-    return db.scalar(select(SmartChannel).where(SmartChannel.id == resolve_channel_id(db, channel_id))
+    canonical_id = resolve_channel_id(db, channel_id)
+    if canonical_id != channel_id:
+        config = db.get(ChannelPushConfig, channel_id)
+        if config is not None and config.source_type == "website":
+            raise HTTPException(409, "此官网栏目已合并，请刷新频道列表后操作")
+    return db.scalar(select(SmartChannel).where(SmartChannel.id == canonical_id)
                      .with_for_update().execution_options(populate_existing=True))
 
 
@@ -177,6 +216,78 @@ def catalog(user: UserAccount = Depends(require_user), db: Session = Depends(get
     return dict(wechat_bound=binding is not None, can_manage=user.role == "admin", management_supported=True,
                 audience_supported=True,
                 archived_ids=archived_ids, channels=channels)
+
+
+def member_subscription_state(db: Session, staff: Staff) -> dict:
+    user = staff.user
+    if user is None:
+        raise HTTPException(409, "请先为该成员开通登录账号")
+    binding = active_wechat_binding(db, staff.id)
+    reason = ""
+    if not user.enabled or not staff.enabled:
+        reason = "该成员已停用，请先启用账号"
+    elif not can_access(user.allowed_pages, user.role, frozenset({"channels"})):
+        reason = "该成员尚无智能频道页面访问权限"
+    elif binding is None:
+        reason = "请先为该成员绑定一个有效的微信接收渠道"
+    rows = db.execute(active_channel_catalog().add_columns(ChannelPushConfig, ChannelSubscription)
+                      .outerjoin(ChannelPushConfig, ChannelPushConfig.channel_id == SmartChannel.id)
+                      .outerjoin(ChannelSubscription, (ChannelSubscription.channel_id == SmartChannel.id)
+                                 & (ChannelSubscription.user_id == user.id))).all()
+    channels = []
+    for channel, config, subscription in rows:
+        settings = channel_push_settings(channel, config)
+        allowed = subscription_allowed(channel, user.id)
+        unavailable = reason or ("请先在智能频道的“订阅权限”中开放该成员" if not allowed else "")
+        unavailable = unavailable or ("该频道已暂停微信推送" if not settings["enabled"] else "")
+        channels.append(dict(id=channel.id, name=settings["name"], schedule=settings["schedule"],
+                             enabled=settings["enabled"], can_subscribe=not unavailable, unavailable_reason=unavailable,
+                             subscribed=allowed and subscription_matches(subscription, binding)))
+    return dict(staff_id=staff.id, user_id=user.id, member_name=staff.name, wechat_bound=binding is not None,
+                binding_revision=binding_fingerprint(binding) if binding else None, channels=channels,
+                subscribed_channel_ids=sorted(row["id"] for row in channels if row["subscribed"]))
+
+
+@router.get("/members/{staff_id}")
+def get_member_subscriptions(staff_id: int, _user: UserAccount = Depends(require_channel_admin),
+                             db: Session = Depends(get_db)):
+    return member_subscription_state(db, load_member(db, staff_id))
+
+
+@router.put("/members/{staff_id}")
+def save_member_subscriptions(staff_id: int, payload: MemberSubscriptionDraft,
+                              _user: UserAccount = Depends(require_channel_admin), db: Session = Depends(get_db)):
+    lock_sqlite_writer(db)
+    # Match the channel-first lock order used by personal subscriptions and audience changes.
+    db.scalars(select(SmartChannel).order_by(SmartChannel.id).with_for_update()).all()
+    staff = load_member(db, staff_id)
+    if staff.user is None:
+        raise HTTPException(409, "请先为该成员开通登录账号")
+    user = staff.user
+    subscriptions = {row.channel_id: row for row in db.scalars(select(ChannelSubscription)
+                     .where(ChannelSubscription.user_id == user.id).order_by(ChannelSubscription.channel_id)
+                     .with_for_update().execution_options(populate_existing=True))}
+    binding = active_wechat_binding(db, staff.id, lock=True)
+    state = member_subscription_state(db, staff)
+    if state["binding_revision"] != payload.binding_revision:
+        raise HTTPException(409, "该成员的微信绑定已变更，请重新加载后确认订阅")
+    current = state["subscribed_channel_ids"]
+    selected = payload.channel_ids
+    if current != payload.previous_channel_ids and current != selected:
+        raise HTTPException(409, "该成员的订阅已被更新，请重新加载后再编辑")
+    channels = {row["id"]: row for row in state["channels"]}
+    for channel_id in selected:
+        channel = channels.get(channel_id)
+        if channel is None:
+            raise HTTPException(422, "频道已删除或合并，请重新加载频道列表")
+        if channel_id not in current and not channel["can_subscribe"]:
+            raise HTTPException(409, f"{channel['name']}：{channel['unavailable_reason']}")
+    db.execute(delete(ChannelSubscription).where(ChannelSubscription.user_id == user.id,
+                                               ChannelSubscription.channel_id.not_in(selected)))
+    for channel_id in selected:
+        update_subscription(db, channel_id, user.id, binding, subscriptions.get(channel_id))
+    db.commit()
+    return member_subscription_state(db, staff)
 
 
 def audience_members():
@@ -242,6 +353,9 @@ def save_config(payload: ChannelPushDraft, user: UserAccount = Depends(require_c
         db.add(channel)
         db.flush()
 
+    grouped_sources = grouped_website_sources(db, channel.id)
+    if grouped_sources and payload.source_type != "articles":
+        raise HTTPException(409, "此频道汇总多个官网栏目，请保留‘频道已有情报’作为内容来源")
     config = db.get(ChannelPushConfig, channel.id, with_for_update=True)
     if config is None:
         config = ChannelPushConfig(channel_id=channel.id)
@@ -257,7 +371,7 @@ def save_config(payload: ChannelPushDraft, user: UserAccount = Depends(require_c
     channel.name = payload.name
     channel.description = payload.description
     managed = is_managed(db, channel.id)
-    enabled_state(channel, config, payload.enabled, managed)
+    enabled_state(channel, config, payload.enabled, managed and not grouped_sources)
     db.commit()
     return admin_channel_read(db, user, channel, config, managed)
 
@@ -276,7 +390,7 @@ def set_enabled(channel_id: str, payload: ChannelEnabled, user: UserAccount = De
         config = ChannelPushConfig(channel_id=channel.id, **values)
         db.add(config)
     managed = is_managed(db, channel.id)
-    enabled_state(channel, config, payload.enabled, managed)
+    enabled_state(channel, config, payload.enabled, managed and not grouped_website_sources(db, channel.id))
     db.commit()
     return admin_channel_read(db, user, channel, config, managed)
 
@@ -333,13 +447,7 @@ def subscribe(channel_id: str, user: UserAccount = Depends(require_user), db: Se
     binding = active_wechat_binding(db, user.staff_id, lock=True)
     if binding is None:
         raise HTTPException(409, "请联系管理员为你的账号绑定一个有效的微信接收渠道")
-    if not subscription_matches(subscription, binding):
-        if subscription is None:
-            subscription = ChannelSubscription(channel_id=channel.id, user_id=user.id)
-            db.add(subscription)
-        subscription.binding_id = binding.id
-        subscription.binding_fingerprint = binding_fingerprint(binding)
-        subscription.created_at = utcnow()
+    update_subscription(db, channel.id, user.id, binding, subscription)
     try:
         db.commit()
     except IntegrityError:

@@ -110,7 +110,7 @@ export function ChannelAudienceDialog({ channel, settings, onClose, onSave }: Pr
                 </div>
               </>}
             </fieldset>
-            <p className="channel-audience-note">成员需自行订阅后才接收推送。移出名单会取消该成员已有的订阅。</p>
+            <p className="channel-audience-note">成员自行订阅或由管理员开通后接收推送。移出名单会取消该成员已有的订阅。</p>
           </> : <p role="status">正在读取订阅权限…</p>}
           {saveError && <div className="channel-audience-error">
             <span className="channel-action-error" role="alert">{saveError}</span>
