@@ -6,7 +6,7 @@ import subprocess
 import sys
 import pytest
 
-from sqlalchemy import create_engine
+from sqlalchemy import Column, MetaData, Table, create_engine
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.dialects import mysql
 from alembic.config import Config
@@ -20,8 +20,15 @@ from app.knowledge_models import KnowledgeItem
 def test_migration_preserves_previous_accounts_and_tasks(tmp_path, filename):
     database = tmp_path / filename
     engine = create_engine(f"sqlite:///{database.as_posix()}")
+    # Build the stamped historical schema, not today's staff columns. Pairing and
+    # supervisor migrations below must actually introduce their own fields.
+    historical = MetaData()
+    for name, excluded in (("staff", {"supervisor_id"}), ("staff_channel", {"wechat_profile"})):
+        Table(name, historical, *(Column(column.name, column.type, primary_key=column.primary_key,
+              nullable=column.nullable) for column in Base.metadata.tables[name].columns if column.name not in excluded))
+    historical.create_all(engine)
     for table in Base.metadata.sorted_tables:
-        if not table.name.startswith("knowledge_"):
+        if not table.name.startswith("knowledge_") and table.name not in {"staff", "staff_channel", "wechat_pairing"}:
             table.create(engine)
     engine.dispose()
     with sqlite3.connect(database) as connection:

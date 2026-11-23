@@ -2,7 +2,7 @@
   "schema": 1,
   "version": "0.6.9",
   "source_only": true,
-  "base_commit": "f15f25729bf4cc1b88473ae1281d6a1cd62cb71c",
+  "base_commit": "4329b509a7ea1bc143101b2d341d7d002ad61df5",
   "files": [
     {
       "path": ".env.example",
@@ -271,8 +271,8 @@
     },
     {
       "path": "docs/delivery/release-0.6.9.md",
-      "bytes": 3518,
-      "sha256": "b7b3bb0a168a3e296d549c5f4205afdf2db12c8f00d48fa7497677075ae4b07c"
+      "bytes": 4553,
+      "sha256": "5dae21a336205462a9fe8c27bf0f897ba8f8a8fcf7221a49073babfe89522126"
     },
     {
       "path": "electron/desktop-updater.cjs",
@@ -2121,8 +2121,8 @@
     },
     {
       "path": "server/tests/test_knowledge_migration.py",
-      "bytes": 3324,
-      "sha256": "6fd03b603b236952608c406a5db13f1cab8cfb2acadc04d4cef7855e7765fdf1"
+      "bytes": 3954,
+      "sha256": "c46f0c5d938aa0b9d0736c7d2e3278dc7b9be4d3cb448dcc829c51879a726ab2"
     },
     {
       "path": "server/tests/test_knowledge_notifications.py",
