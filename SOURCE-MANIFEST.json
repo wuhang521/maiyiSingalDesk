@@ -2,7 +2,7 @@
   "schema": 1,
   "version": "0.6.9",
   "source_only": true,
-  "base_commit": "4329b509a7ea1bc143101b2d341d7d002ad61df5",
+  "base_commit": "5183e1a8006797fd52e19b323fc826475ce9e923",
   "files": [
     {
       "path": ".env.example",
@@ -260,6 +260,11 @@
       "sha256": "702f64a3442c441676e1797625761cd3d886fb091414363a327c0519745e2590"
     },
     {
+      "path": "docs/delivery/admin-member-subscriptions-20261120/README.md",
+      "bytes": 5929,
+      "sha256": "b75e3d2d68c08920b67cc0174090e2642c3b35d569f8a366df44ccdf13ca85d3"
+    },
+    {
       "path": "docs/delivery/r3-git-sync-20261104-tests.json",
       "bytes": 1517,
       "sha256": "43dee077e3de9d58740696e78eb7d95b40ac84a660d2226b7237faa3339cf2de"
@@ -270,9 +275,14 @@
       "sha256": "d7fae0edc970fb2573dd3f549993669dd4b3f88d875f10a7f01ff88b53b00d36"
     },
     {
+      "path": "docs/delivery/release-0.6.9-acceptance.md",
+      "bytes": 5947,
+      "sha256": "14b8c55822e0d1340db9f0e811ccee718368eaeb741944154fd5c8204dd5a655"
+    },
+    {
       "path": "docs/delivery/release-0.6.9.md",
-      "bytes": 4553,
-      "sha256": "5dae21a336205462a9fe8c27bf0f897ba8f8a8fcf7221a49073babfe89522126"
+      "bytes": 4668,
+      "sha256": "38da3495071b6b7b1072186b9ebb1b4833c6d5418a13ef7b920b07a068a004ce"
     },
     {
       "path": "electron/desktop-updater.cjs",
