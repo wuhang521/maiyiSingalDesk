@@ -1,0 +1,125 @@
+{
+  "date": "2026-11-23",
+  "unit_api_tests": 78,
+  "backend_api_regression": 51,
+  "onboarding": 16,
+  "task_self_create_regression": 8,
+  "nickname_prefix": 3,
+  "native_http_scenarios": [
+    {
+      "passed": true,
+      "profile": "fixture-a",
+      "native_plugin_registration": true,
+      "native_hook_command": true,
+      "native_default_clone": true,
+      "native_persona_loader": true,
+      "real_http_subscription": true,
+      "permissions_unchanged": true,
+      "messages_sent_to_wechat": 0,
+      "database": "isolated synthetic SQLite"
+    },
+    {
+      "passed": true,
+      "profile": "fixture-b",
+      "native_plugin_registration": true,
+      "native_hook_command": true,
+      "native_default_clone": true,
+      "native_persona_loader": true,
+      "real_http_subscription": true,
+      "permissions_unchanged": true,
+      "messages_sent_to_wechat": 0,
+      "database": "isolated synthetic SQLite"
+    }
+  ],
+  "actual_default_clone": {
+    "passed": true,
+    "actual_production_default": true,
+    "native_clone": true,
+    "onboarding_inherited": true,
+    "no_message_connections": true,
+    "no_personal_onboarding_state": true,
+    "native_recovery_and_model_inherited": true,
+    "weather_city": "北京",
+    "weather_timezone": "Asia/Shanghai",
+    "weather_weekdays": [
+      "09:00",
+      "18:00"
+    ],
+    "weather_jobs_paused_until_bound": true,
+    "production_default_unchanged": true,
+    "wechat_messages_sent": 0
+  },
+  "production": {
+    "passed": true,
+    "read_only": true,
+    "subscription_writes": 0,
+    "wechat_messages_sent": 0,
+    "profiles": [
+      {
+        "profile": "default",
+        "notification_platform": null,
+        "city": "中国·北京市·北京",
+        "old_member_not_reprompted": false,
+        "catalog_http": "not_applicable"
+      },
+      {
+        "profile": "chenying",
+        "notification_platform": "weixin",
+        "city": "中国·安徽·合肥",
+        "old_member_not_reprompted": true,
+        "catalog_http": 404,
+        "member_account_link_required": true
+      },
+      {
+        "profile": "futaotao",
+        "notification_platform": "weixin",
+        "city": "中国·安徽·合肥",
+        "old_member_not_reprompted": true,
+        "catalog_http": 200,
+        "eligible_channels": 3
+      },
+      {
+        "profile": "jiege",
+        "notification_platform": "qqbot",
+        "city": "中国·北京市·北京",
+        "old_member_not_reprompted": false,
+        "catalog_http": "not_applicable"
+      },
+      {
+        "profile": "songwei",
+        "notification_platform": "weixin",
+        "city": "中国·北京市·北京",
+        "old_member_not_reprompted": true,
+        "catalog_http": 404,
+        "member_account_link_required": true
+      },
+      {
+        "profile": "weixin-minjie",
+        "notification_platform": "weixin",
+        "city": "中国·北京市·北京",
+        "old_member_not_reprompted": true,
+        "catalog_http": 200,
+        "eligible_channels": 3
+      },
+      {
+        "profile": "weixin-suzong",
+        "notification_platform": "weixin",
+        "city": "中国·北京市·北京",
+        "old_member_not_reprompted": true,
+        "catalog_http": 404,
+        "member_account_link_required": true
+      },
+      {
+        "profile": "weixin-wuhang",
+        "notification_platform": "weixin",
+        "city": "中国·北京市·北京",
+        "old_member_not_reprompted": true,
+        "catalog_http": 200,
+        "eligible_channels": 3
+      }
+    ]
+  },
+  "phone_delivery": "NOT_RUN",
+  "production_subscription_writes": 0,
+  "wechat_messages_sent": 0
+}

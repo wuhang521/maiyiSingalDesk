@@ -258,6 +258,10 @@ def get_member_subscriptions(staff_id: int, _user: UserAccount = Depends(require
 def save_member_subscriptions(staff_id: int, payload: MemberSubscriptionDraft,
                               _user: UserAccount = Depends(require_channel_admin), db: Session = Depends(get_db)):
     lock_sqlite_writer(db)
+    return apply_member_subscriptions(staff_id, payload, db)
+
+
+def apply_member_subscriptions(staff_id: int, payload: MemberSubscriptionDraft, db: Session):
     # Match the channel-first lock order used by personal subscriptions and audience changes.
     db.scalars(select(SmartChannel).order_by(SmartChannel.id).with_for_update()).all()
     staff = load_member(db, staff_id)

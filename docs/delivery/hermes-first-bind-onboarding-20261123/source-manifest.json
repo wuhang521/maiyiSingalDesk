@@ -1,0 +1,32 @@
+{
+  "normalization": "UTF-8 source bytes with LF line endings",
+  "files": {
+    "docs/delivery/hermes-first-bind-onboarding-20261123/README.md": "cf132bb6c39eaa3d28e4e99a6dbe2cbe245faea72964ac2075079862ee59d103",
+    "docs/delivery/hermes-first-bind-onboarding-20261123/evidence/native-dialogue.json": "a2ae011936937c993b66377501d932a9270b8d7436bd9a3af56940272aab433c",
+    "docs/delivery/hermes-first-bind-onboarding-20261123/evidence/verification-summary.json": "9dd735041d3ecc1ed81910c31b738b4f372cd1c1ca8d0074f61eba6d3e37d536",
+    "docs/delivery/hermes-first-bind-onboarding-20261123/implementation.md": "32a383e6fdf66c5a91d5f6633bb66b406c39076d4df3b7af92af9881dfca04e7",
+    "docs/delivery/hermes-first-bind-onboarding-20261123/test-report.md": "57db18214b3797008730add6b026d242542cb4069a13aaaebc7e11486bb241b8",
+    "hermes-plugin/channel-nickname-prefix/__init__.py": "52ed135836a5892b8ef7e0951621fff77ac2112f654dc7473e853a5ee490d77b",
+    "hermes-plugin/channel-nickname-prefix/plugin.yaml": "804b58b6e4c6de644a64c4b9ed3d39ef17cd1ec306156422ab686c7c1409f65e",
+    "hermes-plugin/channel-nickname-prefix/tests/test_personal_prefix.py": "5f957fe11d0d571ea44ac2ae2c944626d5c4db0449528cb0d204bd09b8368c79",
+    "hermes-plugin/shared-task-router/__init__.py": "bfe19cfa666c8a4215f95bfdca25a96ffece67ba2373dce007910f9616a18331",
+    "hermes-plugin/shared-task-router/onboarding.py": "ff7cbff2c7ed7fb15ebc79c7e348abb380df11e16e80596c288702bb3859d256",
+    "hermes-plugin/shared-task-router/onboarding_api.py": "7aeae0e01e74900456d6cfe0264028ad00ebd16a26e7a0f694a8a9386fee2062",
+    "hermes-plugin/shared-task-router/onboarding_gateway.py": "1f87bf5dbd38b1056f26666738cae5815cdcdb926496e02b9a897a767bfe137c",
+    "hermes-plugin/shared-task-router/operations-guide.md": "146a6c27a9e5f08a0d3c362bfe6f17e060550f2ffa8b52a767b28a8a4f2a7fec",
+    "hermes-plugin/shared-task-router/tests/test_onboarding.py": "c4021d6aee6424992eea332f17885dfa5dc47507491b39c9a438bd8ac8fcc60b",
+    "hermes-plugin/shared-task-router/tests/test_onboarding_gateway.py": "6784cc1bbe8ecdd0d3d3ef3d388989e81e7981fe9ceb962643cf6d2165136f79",
+    "scripts/check-hermes-onboarding-production.py": "62c7c553119613bb1fc3ffeb0ab50b3110ff6a1c0fa3a93a7aed00c7c55bcea1",
+    "scripts/check-hermes-onboarding-template.py": "cbb5b44b7bb90cc52d8fb3085afa6e7c49dde714dbe1a827dd3d8bcf42b99a67",
+    "scripts/deploy-hermes-onboarding-profiles.py": "a4e0786d0a6778241a3f9d86601f7dfb05f87547d2af78765d99f5ff4e6eeb11",
+    "scripts/hermes-onboarding-native.py": "6a2b3857f05afc63707da4ec0f3b971ab58c84fb470e2624ea97efbf0fc39249",
+    "scripts/update-hermes-onboarding-prefix.py": "23c59eeac72353318a2452f43752f8489c4eacb96b65fd739f6f260a69aee692",
+    "server/app/channel_onboarding.py": "61ba5ca01e1bd141f34b95e84191124a80cd8bce61681864c27a6a8dd55ed02a",
+    "server/app/channel_subscriptions.py": "8c0c0babf952ea964a45384141378c646d40331ebdaa87e54d399ee12de266ca",
+    "server/app/main.py": "d1d3b0a7092d1e17c0c55a3a997a7a43f57d5875d130b2bc0b7e916d92f8cf1e",
+    "server/scripts/check_hermes_onboarding_release.py": "e138b4c5d9e8ce9190ad1806a956a6c80011aeac161033fea274ce8ec1c66a70",
+    "server/scripts/deploy_hermes_onboarding.py": "7d6a828a2363fe3ffa7a14f4274543123942ca8cd4c7b9ba93004450dcca097f",
+    "server/tests/onboarding_preview.py": "be8e1c50a4282b7fedef87a671683df3d65ea8798c95d1103b6fa70571e88090",
+    "server/tests/test_channel_subscriptions.py": "91c9e6fff597b134b1e1eba8ba551cbe2b8be003796df73b455ae5b427353a18"
+  }
+}

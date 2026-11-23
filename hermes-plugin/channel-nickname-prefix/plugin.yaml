@@ -1,0 +1,5 @@
+name: channel-nickname-prefix
+version: 1.0.0
+description: Add a deterministic nickname prefix to every QQ and Weixin text response.
+author: Local
+kind: standalone

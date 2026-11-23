@@ -31,6 +31,81 @@ def member_draft(client, channels, *, staff_id=1, snapshot=None):
 
 
 @pytest.fixture
+def onboarding_api(api, monkeypatch, tmp_path):
+    from app import channel_onboarding, wechat_pairing
+    client, factory = api
+    client.app.include_router(channel_onboarding.router)
+    actor = {'recipient_id': 'member-one@im.wechat', 'profile': 'weixin-member'}
+    with factory.begin() as db:
+        binding = db.get(StaffChannel, 1)
+        binding.recipient_id = actor['recipient_id']; binding.wechat_profile = actor['profile']
+    path = tmp_path / 'routes.json'
+    path.write_text(json.dumps({'bindings': {}, 'routes': {actor['profile']: {
+        'url': 'http://127.0.0.1:9876/p/weixin-member/webhooks/signaldesk-channel-weixin-weixin-member',
+        'secret': 'synthetic-route-key'}}}), encoding='utf-8')
+    monkeypatch.setattr(wechat_pairing, 'get_settings', lambda: SimpleNamespace(channel_wechat_routes_file=str(path)))
+    return client, factory, actor
+
+
+def receiver_draft(state, actor, selected):
+    return {**actor, 'previous_channel_ids': state['subscribed_channel_ids'], 'channel_ids': selected,
+            'binding_revision': state['binding_revision']}
+
+
+def test_onboarding_receiver_opens_real_subscription_and_preserves_admin_existing(onboarding_api):
+    client, factory, actor = onboarding_api
+    assert client.put(f'{BASE}/existing/subscription', headers=MEMBER).status_code == 200
+    extra = client.post(f'{BASE}/configs', headers=ADMIN, json={'name': '医疗前沿频道', 'schedule': '09:00',
+        'max_items': 20, 'source_type': 'articles'}).json()['id']
+    state = client.post('/api/v1/channel-onboarding/catalog', headers=SERVICE, json=actor)
+    assert state.status_code == 200
+    result = client.put('/api/v1/channel-onboarding/subscriptions', headers=SERVICE,
+                        json=receiver_draft(state.json(), actor, [extra]))
+    assert result.status_code == 200
+    assert set(result.json()['subscribed_channel_ids']) == {'existing', extra}
+    catalog = client.get(f'{BASE}/catalog', headers=MEMBER).json()
+    assert {row['id'] for row in catalog['channels'] if row['subscribed']} == {'existing', extra}
+    assert not any(row['subscribed'] for row in client.get(f'{BASE}/catalog', headers=ADMIN).json()['channels'])
+
+
+def test_onboarding_bridge_requires_service_auth_and_exact_bound_receiver(onboarding_api):
+    client, _, actor = onboarding_api
+    endpoint = '/api/v1/channel-onboarding/catalog'
+    assert client.post(endpoint, json=actor).status_code == 401
+    assert client.post(endpoint, headers=MEMBER, json=actor).status_code == 401
+    assert client.post(endpoint, headers=SERVICE, json={**actor, 'profile': 'another-profile'}).status_code == 404
+    assert client.post(endpoint, headers=SERVICE, json={**actor, 'recipient_id': 'other@im.wechat'}).status_code == 404
+
+
+def test_onboarding_menu_hides_ineligible_and_paused_channels(onboarding_api):
+    client, factory, actor = onboarding_api
+    with factory.begin() as db:
+        db.get(SmartChannel, 'existing').subscription_user_ids = []
+    response = client.post('/api/v1/channel-onboarding/catalog', headers=SERVICE, json=actor)
+    assert response.status_code == 200
+    assert response.json()['channels'] == []
+    rejected = client.put('/api/v1/channel-onboarding/subscriptions', headers=SERVICE,
+                          json=receiver_draft(response.json(), actor, ['existing']))
+    assert rejected.status_code == 409
+    with factory.begin() as db:
+        channel = db.get(SmartChannel, 'existing'); channel.subscription_user_ids = None; channel.state = 'paused'
+    assert client.post('/api/v1/channel-onboarding/catalog', headers=SERVICE, json=actor).json()['channels'] == []
+
+
+def test_onboarding_old_binding_snapshot_is_rejected_without_writes(onboarding_api):
+    client, factory, actor = onboarding_api
+    state = client.post('/api/v1/channel-onboarding/catalog', headers=SERVICE, json=actor)
+    assert state.status_code == 200
+    with factory.begin() as db:
+        db.get(StaffChannel, 1).created_at = utcnow() + timedelta(seconds=1)
+    response = client.put('/api/v1/channel-onboarding/subscriptions', headers=SERVICE,
+                          json=receiver_draft(state.json(), actor, ['existing']))
+    assert response.status_code == 409
+    with factory() as db:
+        assert db.scalar(select(func.count()).select_from(ChannelSubscription)) == 0
+
+
+@pytest.fixture
 def api(monkeypatch):
     engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
     factory = sessionmaker(engine, autoflush=False, expire_on_commit=False)

@@ -27,6 +27,11 @@ except ImportError:
 
 from hermes_constants import get_hermes_home
 
+try:
+    from . import onboarding_gateway
+except ImportError:
+    import onboarding_gateway
+
 
 logger = logging.getLogger(__name__)
 TOKEN_TTL_SECONDS = 300
@@ -183,6 +188,9 @@ def _pre_gateway_dispatch(*, event: Any, gateway: Any, **_: Any) -> dict[str, st
     source = getattr(event, "source", None)
     if source is None:
         return None
+    onboarding_result = onboarding_gateway.prepare(event=event, home=get_hermes_home())
+    if onboarding_result is not None:
+        return onboarding_result
     text = getattr(event, "text", "") or ""
     if re.match(r"^绑定迈医(?:\s|$)", text.strip()):
         return None
@@ -224,6 +232,8 @@ def _pre_gateway_dispatch(*, event: Any, gateway: Any, **_: Any) -> dict[str, st
 
 def register(ctx: Any) -> None:
     ctx.register_hook("pre_gateway_dispatch", _pre_gateway_dispatch)
+    ctx.register_command("member-onboarding-result", onboarding_gateway.result,
+                         description="首次绑定设置个人称呼、频道订阅与操作指南", args_hint="<token>")
     ctx.register_command(
         "shared-task-result",
         _result_command,
